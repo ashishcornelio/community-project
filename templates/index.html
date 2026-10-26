@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LearnSphere AI – Personalized Learning Support System | SMVITM Bantakal</title>
+  <meta name="description" content="AI-powered personalized learning support system designed for high school students. Simple explanations, multilingual support (English, Kannada, Hindi), practice quizzes, learning gap detection, and visual simulations.">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>">
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header class="header-bar">
+    <div class="brand-wrapper">
+      <a href="#landing" class="brand-logo" onclick="window.navigateTo('landing')">
+        <div class="brand-icon">🌐</div>
+        <div class="brand-meta">
+          <span>LearnSphere AI</span>
+          <span class="brand-badge">SMVITM AIDS • Team 11</span>
+        </div>
+      </a>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="nav-tab-btn active" data-view="landing">🏠 Home</button>
+      <button class="nav-tab-btn" data-view="dashboard">📊 Dashboard</button>
+      <button class="nav-tab-btn" data-view="learn">📖 Learn & Notes</button>
+      <button class="nav-tab-btn" data-view="doubt-solver">🤖 AI Doubt Solver</button>
+      <button class="nav-tab-btn" data-view="quiz">🎯 Adaptive Quiz</button>
+      <button class="nav-tab-btn" data-view="notes">📝 Short Notes</button>
+      <button class="nav-tab-btn" data-view="progress">📈 Progress & Gaps</button>
+      <button class="nav-tab-btn" data-view="study-plan">📅 Study Plan</button>
+      <button class="nav-tab-btn" data-view="visual-lab">🔬 Visual Lab</button>
+      <button class="nav-tab-btn" data-view="career">🚀 Career</button>
+      <button class="nav-tab-btn" data-view="teacher">👩‍🏫 Teacher View</button>
+      <button class="nav-tab-btn" data-view="admin">🛡️ Admin</button>
+    </nav>
+
+    <!-- Header Controls -->
+    <div class="header-controls">
+      <!-- LAN Share Badge -->
+      <span id="lan-share-badge" class="chip" style="cursor:pointer; font-size:0.78rem; border-color:var(--primary); color:#c7d2fe; display:none;" title="Click to copy Network URL">
+        🌐 LAN: Loading...
+      </span>
+
+      <!-- Language Selector -->
+      <select id="global-lang-select" class="lang-select" title="Switch Language">
+        <option value="en">English (ENG)</option>
+        <option value="kn">ಕನ್ನಡ (Kannada)</option>
+        <option value="hi">हिन्दी (Hindi)</option>
+      </select>
+
+      <!-- User Persona Switcher -->
+      <select id="global-user-select" class="user-select" title="Switch User Profile">
+        <option value="arjun">👨‍🎓 Arjun (School Student, 10th)</option>
+        <option value="ananya">👩‍🎓 Ananya (School Student, 9th)</option>
+        <option value="pooja">👩‍🏫 Mrs. Pooja (Teacher)</option>
+        <option value="admin">🛡️ Administrator (System Health)</option>
+      </select>
+
+      <!-- Theme Toggle -->
+      <button id="theme-toggle-btn" class="theme-toggle-btn" title="Toggle Theme">☀️</button>
+    </div>
+  </header>
+
+  <!-- Main View Container -->
+  <main class="main-wrapper">
+
+    <!-- ====================================================
+         1. LANDING PAGE VIEW
+         ==================================================== -->
+    <section id="view-landing" class="view-section active">
+      <div class="hero-section">
+        <div class="hero-pill-badge">
+          <span>🎯 LearnSphere Adaptive Learning & Mastery System</span> • <span>SDG 4 Quality Education</span>
+        </div>
+        <h1 class="hero-title">
+          Learn at Your Level. <span class="text-gradient">Practise at Your Pace.</span> Master It Yourself.
+        </h1>
+        <p class="hero-subtitle">
+          "One Topic, Many Ways to Learn" • Understand the student, not just their marks. Supporting both high school and college engineering students.
+        </p>
+
+
+        <!-- Search Bar -->
+        <div class="search-box-container">
+          <div class="search-input-wrapper">
+            <span style="font-size:1.2rem; color:var(--text-muted); margin-right:0.6rem;">🔍</span>
+            <input type="text" id="global-search-input" class="search-input" 
+                   placeholder="What do you want to learn today? (e.g. Newton's laws, Linear equations...)">
+            <button id="global-search-btn" class="search-btn">Search</button>
+          </div>
+        </div>
+
+        <!-- Quick Feature Chips -->
+        <div class="feature-chips">
+          <span class="chip" onclick="window.navigateTo('learn')">⚡ AI Explanations</span>
+          <span class="chip" onclick="window.navigateTo('quiz')">🎯 Practice Questions</span>
+          <span class="chip" onclick="window.navigateTo('notes')">📝 Short Notes</span>
+          <span class="chip" onclick="document.getElementById('global-lang-select').value='kn'; window.appState.currentLanguage='kn'; window.navigateTo('learn');">🗣️ Kannada & Hindi Support</span>
+          <span class="chip" onclick="window.navigateTo('progress')">📊 Progress Tracking</span>
+          <span class="chip" onclick="window.navigateTo('visual-lab')">🔬 Interactive Simulations</span>
+        </div>
+
+        <div style="margin-top:2.2rem; display:flex; justify-content:center; gap:1rem;">
+          <button class="btn-primary" onclick="window.navigateTo('dashboard')" style="font-size:1.05rem; padding:0.8rem 1.8rem;">
+            🚀 Open Student Dashboard
+          </button>
+          <button class="btn-secondary" onclick="window.navigateTo('doubt-solver')" style="font-size:1.05rem; padding:0.8rem 1.8rem;">
+            💬 Ask AI Doubt Solver
+          </button>
+        </div>
+      </div>
+
+      <!-- Field Study Context Banner -->
+      <div class="field-study-banner">
+        <div class="field-study-badge">🏫</div>
+        <div class="field-study-content">
+          <h4>Field Study Research & Stakeholder Foundation</h4>
+          <p>
+            Developed following community field visits to <strong>Shri Vishnumoorthi Hayavadanaswami High School (SVH), Innanje</strong>. 
+            Direct interviews with Headmistress Mrs. Sushma, Social Science Teacher Mrs. Pooja, and students (Arjun, Ananya, Rahul, Priya, Sneha) identified key pain points: 
+            <em>complex explanations, difficulty retaining lengthy answers, choosing correct formulas in Math, and lack of visual explanations.</em>
+          </p>
+        </div>
+      </div>
+
+      <!-- Features Grid -->
+      <div class="features-grid">
+        <div class="feature-card glass-panel">
+          <div class="feature-card-icon">🧠</div>
+          <h3>Personalized AI Learning</h3>
+          <p style="color:var(--text-secondary); font-size:0.92rem;">
+            Breaks down difficult concepts into simple language, memorable real-life analogies, and step-by-step guidance tailored to each student's pace.
+          </p>
+          <a href="#learn" onclick="window.navigateTo('learn')" style="color:var(--primary); font-weight:700; font-size:0.88rem; text-decoration:none;">Explore Topics →</a>
+        </div>
+
+        <div class="feature-card glass-panel">
+          <div class="feature-card-icon">🗣️</div>
+          <h3>Multilingual Support & Speech</h3>
+          <p style="color:var(--text-secondary); font-size:0.92rem;">
+            Learn comfortably in <strong>English, Kannada (ಕನ್ನಡ)</strong>, and <strong>Hindi (हिन्दी)</strong> with real-time text-to-speech audio narration.
+          </p>
+          <a href="#learn" onclick="window.navigateTo('learn')" style="color:var(--secondary); font-weight:700; font-size:0.88rem; text-decoration:none;">Listen in Kannada →</a>
+        </div>
+
+        <div class="feature-card glass-panel">
+          <div class="feature-card-icon">🎯</div>
+          <h3>Smart Quizzes & Gap Detection</h3>
+          <p style="color:var(--text-secondary); font-size:0.92rem;">
+            Instant answer feedback with countdown timers. Automatic algorithms detect topics where scores fall below 70% and schedule targeted revision.
+          </p>
+          <a href="#quiz" onclick="window.navigateTo('quiz')" style="color:var(--accent); font-weight:700; font-size:0.88rem; text-decoration:none;">Take Quiz Challenge →</a>
+        </div>
+
+        <div class="feature-card glass-panel">
+          <div class="feature-card-icon">📝</div>
+          <h3>Short Notes & Concept Mind Maps</h3>
+          <p style="color:var(--text-secondary); font-size:0.92rem;">
+            Generate high-yield revision summaries, printable bullet points, and interactive SVG concept mind maps for rapid exam preparation.
+          </p>
+          <a href="#notes" onclick="window.navigateTo('notes')" style="color:var(--info); font-weight:700; font-size:0.88rem; text-decoration:none;">Generate Notes →</a>
+        </div>
+
+        <div class="feature-card glass-panel">
+          <div class="feature-card-icon">🔬</div>
+          <h3>Interactive Visual Lab</h3>
+          <p style="color:var(--text-secondary); font-size:0.92rem;">
+            Hands-on physics and mathematics simulations: live linear equation graph plotters and Newton's balanced vs unbalanced force vector diagrams.
+          </p>
+          <a href="#visual-lab" onclick="window.navigateTo('visual-lab')" style="color:var(--primary); font-weight:700; font-size:0.88rem; text-decoration:none;">Launch Lab →</a>
+        </div>
+
+        <div class="feature-card glass-panel">
+          <div class="feature-card-icon">🚀</div>
+          <h3>Career Guidance Portal</h3>
+          <p style="color:var(--text-secondary); font-size:0.92rem;">
+            Connects high school subject strengths with exciting career paths: Engineering, Medicine, Data Science, Civil Services, and top Karnataka colleges.
+          </p>
+          <a href="#career" onclick="window.navigateTo('career')" style="color:#a855f7; font-weight:700; font-size:0.88rem; text-decoration:none;">Explore Careers →</a>
+        </div>
+      </div>
+
+      <!-- Institutional Attribution Footer -->
+      <div class="glass-panel" style="padding:1.5rem; text-align:center; border-radius:var(--radius-md);">
+        <p style="color:var(--text-secondary); font-size:0.9rem;">
+          <strong>Shri Madhwa Vadiraja Institute of Technology and Management (SMVITM), Bantakal</strong><br>
+          Department of Artificial Intelligence & Data Science | IDT Prototype Project • Team Number: 11 (Section: AIDS)<br>
+          <span style="color:var(--text-muted); font-size:0.82rem;">
+            Team Members: Sri Devi K (4MW25AD043), T S Ritika (4MW25AD045), Bhushan (4MW25AD004), Ashish (4MW25AD003), Chethan (4MW25AD005)<br>
+            Under the guidance of: <strong>Ms. Tejaswini H</strong>, Head of Department, AI & DS
+          </span>
+        </p>
+      </div>
+    </section>
+
+    <!-- ====================================================
+         2. STUDENT DASHBOARD VIEW
+         ==================================================== -->
+    <section id="view-dashboard" class="view-section">
+      <!-- Header Welcome Banner -->
+      <div class="dash-header-grid">
+        <div class="welcome-card glass-panel">
+          <div class="welcome-info">
+            <span class="badge-tag" style="background:rgba(99,102,241,0.2); color:#c7d2fe; margin-bottom:0.5rem; display:inline-block;">
+              👋 Student Portal
+            </span>
+            <h2>Welcome back, <span id="dash-user-name" class="text-gradient">Arjun Rao</span>!</h2>
+            <p style="color:var(--text-secondary); max-width:480px;">
+              Ready to master today's lessons? Your personalized study plan and revision recommendations are updated.
+            </p>
+            <div class="welcome-meta">
+              <span class="badge-tag">🏫 SVH High School, Innanje</span>
+              <span class="badge-tag">🎓 Class 10th</span>
+              <span class="badge-tag">🔥 4-Day Learning Streak</span>
+            </div>
+          </div>
+          <div style="font-size:3.5rem; text-align:center;">👨‍🎓</div>
+        </div>
+
+        <!-- Quick AI Assistant Action Card -->
+        <div class="glass-panel" style="padding:1.75rem; display:flex; flex-direction:column; justify-content:space-between;">
+          <div>
+            <h4 style="font-size:1.15rem; margin-bottom:0.4rem;">💬 Quick Doubt Solver</h4>
+            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1rem;">
+              Stuck on a homework problem or formula? Ask your AI tutor anytime.
+            </p>
+          </div>
+          <button class="btn-primary" onclick="window.navigateTo('doubt-solver')" style="width:100%;">
+            Ask a Doubt Now →
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Metrics Row -->
+      <div class="metrics-row">
+        <div class="metric-card glass-panel">
+          <div class="metric-icon" style="background:rgba(99,102,241,0.15); color:var(--primary);">🎯</div>
+          <div>
+            <div class="metric-val" id="metric-overall-mastery">78%</div>
+            <div class="metric-lbl">Overall Mastery</div>
+          </div>
+        </div>
+
+        <div class="metric-card glass-panel">
+          <div class="metric-icon" style="background:rgba(16,185,129,0.15); color:var(--secondary);">🏆</div>
+          <div>
+            <div class="metric-val">12</div>
+            <div class="metric-lbl">Topics Completed</div>
+          </div>
+        </div>
+
+        <div class="metric-card glass-panel">
+          <div class="metric-icon" style="background:rgba(239,68,68,0.15); color:var(--danger);">⚠️</div>
+          <div>
+            <div class="metric-val" style="color:var(--danger);">1</div>
+            <div class="metric-lbl">Critical Gap Flagged</div>
+          </div>
+        </div>
+
+        <div class="metric-card glass-panel">
+          <div class="metric-icon" style="background:rgba(245,158,11,0.15); color:var(--accent);">📅</div>
+          <div>
+            <div class="metric-val">4</div>
+            <div class="metric-lbl">Tasks in Study Plan</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Gap Alert (Slide 25 Mockup 8) -->
+      <div id="dash-gap-alert" class="gap-alert-card">
+        <div class="gap-alert-left">
+          <span style="font-size:1.8rem;">⚠️</span>
+          <div>
+            <h4 style="color:#f87171; margin-bottom:0.2rem;">Learning Gap Detected: Newton's Laws of Motion (33%)</h4>
+            <p id="dash-gap-alert-msg" style="color:var(--text-secondary); font-size:0.88rem;">
+              Your recent quiz score indicates difficulty with balanced forces. We have scheduled an interactive visual revision.
+            </p>
+          </div>
+        </div>
+        <button class="btn-primary" onclick="window.navigateTo('visual-lab')" style="padding:0.5rem 1rem; font-size:0.88rem;">
+          Open Force Simulation →
+        </button>
+      </div>
+
+      <!-- Quick Access Shortcuts (Slide 25 Mockup 3) -->
+      <div class="section-title-row">
+        <h3>⚡ Quick Access</h3>
+        <span style="font-size:0.85rem; color:var(--text-muted);">One-click tools</span>
+      </div>
+
+      <div class="shortcuts-grid">
+        <button class="shortcut-btn" onclick="window.navigateTo('learn')">
+          <span class="shortcut-icon">📖</span>
+          <span>AI Tutor</span>
+        </button>
+        <button class="shortcut-btn" onclick="window.navigateTo('quiz')">
+          <span class="shortcut-icon">🎯</span>
+          <span>Practice Quiz</span>
+        </button>
+        <button class="shortcut-btn" onclick="window.navigateTo('notes')">
+          <span class="shortcut-icon">📝</span>
+          <span>Short Notes</span>
+        </button>
+        <button class="shortcut-btn" onclick="window.navigateTo('doubt-solver')">
+          <span class="shortcut-icon">🤖</span>
+          <span>Doubt Solver</span>
+        </button>
+        <button class="shortcut-btn" onclick="window.navigateTo('study-plan')">
+          <span class="shortcut-icon">📅</span>
+          <span>Study Plan</span>
+        </button>
+        <button class="shortcut-btn" onclick="window.navigateTo('visual-lab')">
+          <span class="shortcut-icon">🔬</span>
+          <span>Visual Lab</span>
+        </button>
+      </div>
+
+      <!-- Subject Cards Grid (Slide 25 Mockup 3) -->
+      <div class="section-title-row">
+        <h3>📚 Subject Modules</h3>
+        <span style="font-size:0.85rem; color:var(--text-muted);">High School Syllabus</span>
+      </div>
+
+      <div id="dash-subjects-grid" class="subjects-grid">
+        <!-- Rendered dynamically by loadDashboardSubjects() -->
+      </div>
+    </section>
+
+    <!-- ====================================================
+         3. TOPIC LEARNING VIEW (Slide 25 Mockup 4)
+         ==================================================== -->
+    <section id="view-learn" class="view-section">
+      <div class="learn-layout">
+        <!-- Left Topic Navigation Sidebar -->
+        <aside class="topics-sidebar glass-panel" id="learn-topics-sidebar">
+          <!-- Loaded dynamically -->
+        </aside>
+
+        <!-- Main Topic Content Pane -->
+        <div class="topic-main-pane glass-panel">
+          <div class="topic-meta-bar">
+            <div>
+              <div id="topic-breadcrumb" style="font-size:0.82rem; margin-bottom:0.4rem;">
+                <!-- Breadcrumbs -->
+              </div>
+              <h2 id="topic-main-title" style="font-size:1.85rem;">Linear Equations in One Variable</h2>
+            </div>
+            <div style="display:flex; gap:0.5rem;">
+              <button id="topic-take-quiz-btn" class="btn-primary" style="padding:0.5rem 1rem; font-size:0.88rem;">
+                🎯 Take Topic Quiz
+              </button>
+              <button id="topic-gen-notes-btn" class="btn-secondary" style="padding:0.5rem 1rem; font-size:0.88rem;">
+                📝 Get Short Notes
+              </button>
+            </div>
+          </div>
+
+          <p id="topic-summary-box" style="color:var(--text-secondary); margin-bottom:1.5rem; font-size:0.95rem;">
+            Understanding equations with a single unknown variable and power 1.
+          </p>
+
+          <!-- Adaptive Learning Mode Indicator (Section 6) -->
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; flex-wrap:wrap; gap:0.75rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <span style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Adaptive Mode:</span>
+              <div class="mode-selector-pill-group">
+                <button class="mode-pill-btn foundation" onclick="window.switchAdaptiveMode('Foundation')">🌱 Foundation</button>
+                <button class="mode-pill-btn active standard" onclick="window.switchAdaptiveMode('Standard')">⚡ Standard</button>
+                <button class="mode-pill-btn challenge" onclick="window.switchAdaptiveMode('Challenge')">🔥 Challenge</button>
+              </div>
+            </div>
+            <!-- Audio Speech Button -->
+            <button id="topic-audio-btn" class="audio-tts-btn" style="margin-bottom:0;">
+              🔊 Read Aloud (Text-to-Speech)
+            </button>
+          </div>
+
+          <!-- Multi-Format Notes Selector Ribbon (Section 5A & 5D: One Topic, Many Ways to Learn) -->
+          <div class="format-ribbon">
+            <button class="format-btn active" data-mode="simple" onclick="window.switchExplanationMode('simple')">
+              💡 Simple Notes
+            </button>
+            <button class="format-btn" data-mode="pointwise" onclick="window.switchExplanationMode('pointwise')">
+              📝 Point-Wise Notes
+            </button>
+            <button class="format-btn" data-mode="detailed" onclick="window.switchExplanationMode('detailed')">
+              📚 Detailed Theory
+            </button>
+            <button class="format-btn" data-mode="exam_ready" onclick="window.switchExplanationMode('exam_ready')">
+              🎯 Exam-Ready Blueprint
+            </button>
+            <button class="format-btn" data-mode="kannada" onclick="window.switchExplanationMode('kannada')">
+              🌟 ಕನ್ನಡದಲ್ಲಿ (Kannada)
+            </button>
+            <button class="format-btn" data-mode="hindi" onclick="window.switchExplanationMode('hindi')">
+              🇮🇳 हिंदी में (Hindi)
+            </button>
+            <button class="format-btn" data-mode="teach_back" onclick="window.switchExplanationMode('teach_back')">
+              🗣️ Explain It (Teach-Back)
+            </button>
+            <button class="format-btn" data-mode="flashcards" onclick="window.switchExplanationMode('flashcards')">
+              🔄 Revise It (Flashcards)
+            </button>
+          </div>
+
+
+          <!-- Formula Box -->
+          <div id="topic-formula-card" class="formula-box-card">
+            Standard Form: ax + b = c | Solution: x = (c - b) / a
+          </div>
+
+          <!-- Main Dynamic Explanation Content Body -->
+          <div id="topic-explanation-body">
+            <!-- Rendered by switchExplanationMode() -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================
+         4. AI DOUBT SOLVER CHATBOT (Slide 25 Mockup 5)
+         ==================================================== -->
+    <section id="view-doubt-solver" class="view-section">
+      <div class="chat-container glass-panel">
+        <div class="chat-header">
+          <div style="display:flex; align-items:center; gap:0.75rem;">
+            <div style="width:40px; height:40px; border-radius:50%; background:linear-gradient(135deg, var(--primary), #a855f7); display:flex; align-items:center; justify-content:center; font-size:1.2rem;">
+              🤖
+            </div>
+            <div>
+              <h3 style="font-size:1.15rem;">LearnSphere AI Doubt Solver</h3>
+              <p style="font-size:0.78rem; color:var(--text-muted);">24/7 Personalized High School Study Assistant</p>
+            </div>
+          </div>
+          <span class="chip" style="font-size:0.75rem; border-color:var(--secondary); color:var(--secondary);">
+            ● Online & Ready
+          </span>
+        </div>
+
+        <!-- Chat Stream -->
+        <div class="chat-messages" id="chat-messages">
+          <div class="chat-bubble ai">
+            <h4 style="color:#a5b4fc; margin-bottom:0.4rem;">👋 Namaskara, Student!</h4>
+            I am your personal LearnSphere AI Doubt Solver. You can ask me any question about <strong>Mathematics, Science, Social Science, English, or Hindi</strong>.
+            <br><br>
+            I can explain formulas in simple words, provide everyday examples, and translate answers to <strong>Kannada</strong> or <strong>Hindi</strong>!
+          </div>
+
+          <!-- Pre-seeded example from Slide 25 Mockup 5 -->
+          <div class="chat-bubble user">
+            Explain Newton's third law in simple words.
+          </div>
+
+          <div class="chat-bubble ai">
+            <h4 style="color:#a5b4fc; margin-bottom:0.4rem;">💡 Newton's Third Law of Motion</h4>
+            Newton's third law states: <em>"For every action force, there is an equal and opposite reaction force."</em>
+            <br><br>
+            <strong>In simple words:</strong> When one object pushes another object, the second object pushes right back with the exact same amount of push in the opposite direction!
+            <br><br>
+            <strong>📌 Everyday Examples:</strong>
+            <br>• <strong>Walking:</strong> Your foot pushes the floor backward; the floor pushes your foot forward.
+            <br>• <strong>Rocket propulsion:</strong> Exhaust gas shoots downward; the rocket is propelled upward into space.
+            <br>• <strong>Recoil of a gun:</strong> The bullet shoots forward; the gun pushes backward against the shooter's shoulder.
+            <button class="audio-tts-btn" style="margin-top:0.75rem;" onclick="window.doubtSolver.speakText('Newton third law: For every action, there is an equal and opposite reaction. Examples include walking, rocket movement, and gun recoil.')">
+              🔊 Listen to Explanation
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Suggestion Pills -->
+        <div class="chat-suggestions-bar">
+          <span class="suggestion-pill">💡 Explain Newton's third law in simple words</span>
+          <span class="suggestion-pill">📐 How do I solve 2x + 3 = 7 step-by-step?</span>
+          <span class="suggestion-pill">🌿 Why do plant leaves look green?</span>
+          <span class="suggestion-pill">🌍 What caused the French Revolution in 1789?</span>
+          <span class="suggestion-pill">🗣️ ಕನ್ನಡದಲ್ಲಿ ವಿವರಿಸಿ (Explain in Kannada)</span>
+        </div>
+
+        <!-- Input Row -->
+        <div class="chat-input-row">
+          <input type="text" id="chat-input" class="chat-input" placeholder="Type your doubt or question here... (e.g. Why is sky blue?)">
+          <button id="mic-btn" class="mic-btn" title="Speak your question">🎤</button>
+          <button id="send-btn" class="send-btn" title="Send Question">➔</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================
+         5. PRACTICE QUIZ VIEW (Slide 25 Mockup 6)
+         ==================================================== -->
+    <section id="view-quiz" class="view-section">
+      <div class="quiz-card glass-panel" id="quiz-card-wrapper">
+        <div class="quiz-top-bar">
+          <div>
+            <span class="chip" style="font-size:0.75rem; margin-bottom:0.4rem;">Topic Challenge</span>
+            <div style="display:flex; align-items:center; gap:0.75rem;">
+              <select id="quiz-topic-select" class="lang-select" style="font-size:0.95rem; font-weight:700;">
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+          </div>
+          <div class="quiz-timer" id="quiz-timer-display">
+            ⏱️ 00:45
+          </div>
+        </div>
+
+        <!-- Inner Interactive Content Area -->
+        <div id="quiz-content-area">
+          <div style="font-size:0.85rem; color:var(--text-muted); font-weight:700; margin-bottom:0.5rem;" id="quiz-question-counter">
+            Question 1 of 3
+          </div>
+
+          <h3 class="question-text" id="quiz-question-text">
+            Which of the following is an example for balanced force?
+          </h3>
+
+          <!-- Options Container -->
+          <div class="quiz-options-list" id="quiz-options-container">
+            <!-- Populated by quizEngine.renderCurrentQuestion() -->
+          </div>
+
+          <!-- Instant Feedback Box -->
+          <div id="quiz-feedback-box" class="quiz-feedback-box" style="display:none;"></div>
+
+          <!-- Bottom Navigation -->
+          <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border-color); padding-top:1.25rem;">
+            <button id="quiz-prev-btn" class="btn-secondary">← Previous</button>
+            <button id="quiz-next-btn" class="btn-primary">Next Question →</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ====================================================
+         6. SHORT NOTES & MIND MAP GENERATOR (Slide 25 Mockup 7)
+         ==================================================== -->
+    <section id="view-notes" class="view-section">
+      <div class="notes-container">
+        <!-- Controls Column -->
+        <div class="glass-panel" style="padding:1.5rem; height:fit-content;">
+          <h3 style="font-size:1.25rem; margin-bottom:0.5rem;">📝 Generate Short Notes</h3>
+          <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1.25rem;">
+            Quick summaries, key exam points, and concept mind maps.
+          </p>
+
+          <div style="margin-bottom:1.1rem;">
+            <label style="font-size:0.82rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:0.35rem;">
+              Select Topic:
+            </label>
+            <select id="notes-topic-select" class="lang-select" style="width:100%;">
+              <option value="linear-equations">Mathematics: Linear Equations</option>
+              <option value="newtons-laws-motion">Science: Newton's Laws & Forces</option>
+              <option value="french-revolution" selected>Social Science: The French Revolution</option>
+              <option value="photosynthesis">Science: Photosynthesis</option>
+            </select>
+          </div>
+
+          <div style="margin-bottom:1.5rem;">
+            <label style="font-size:0.82rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:0.35rem;">
+              Output Format:
+            </label>
+            <select id="notes-format-select" class="lang-select" style="width:100%;">
+              <option value="short_notes">📄 High-Yield Short Notes</option>
+              <option value="important_points">✓ Bullet Points & Formulas</option>
+              <option value="mind_map">🧠 Visual Concept Mind Map</option>
+            </select>
+          </div>
+
+          <button id="generate-notes-btn" class="btn-primary" style="width:100%;">
+            ⚡ Generate Notes
+          </button>
+        </div>
+
+        <!-- Output Display Area -->
+        <div id="notes-output-area">
+          <!-- Rendered dynamically -->
+          <div class="glass-panel" style="padding:2rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; border-bottom:1px solid var(--border-color); padding-bottom:1rem;">
+              <div>
+                <span class="chip" style="font-size:0.75rem; margin-bottom:0.4rem;">Social Science • Class 9-10</span>
+                <h3 style="font-size:1.6rem;">The French Revolution (1789) - Short Notes</h3>
+              </div>
+              <div style="display:flex; gap:0.5rem;">
+                <button class="btn-secondary" onclick="window.print()">🖨️ Print</button>
+                <button class="btn-primary" onclick="alert('Notes copied to clipboard!')">📋 Copy</button>
+              </div>
+            </div>
+
+            <div style="font-size:0.98rem; line-height:1.7;">
+              <h4 style="color:#fbbf24; margin-bottom:0.4rem;">Key Highlights:</h4>
+              <p>• <strong>Outbreak:</strong> 14 July 1789 in Paris with the historic storming of the Bastille prison fortress.</p>
+              <p>• <strong>Social Structure:</strong> French society was divided into Three Estates. The 3rd Estate (peasants, workers, merchants) paid 100% of taxes while 1st & 2nd enjoyed tax-free luxury.</p>
+              <p>• <strong>Important Events:</strong> Tennis Court Oath, Declaration of the Rights of Man and of the Citizen, Reign of Terror (Robespierre), and rise of Napoleon Bonaparte.</p>
+              <p>• <strong>World Legacy:</strong> Universal ideals of <em>Liberty, Equality, and Fraternity (Liberté, Égalité, Fraternité)</em> and abolition of feudalism.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================
+         7. PROGRESS TRACKING & LEARNING GAP DETECTION (Slide 25 Mockup 8)
+         ==================================================== -->
+    <section id="view-progress" class="view-section">
+      <div class="progress-grid">
+        <!-- Circular Mastery Gauge Card -->
+        <div class="circle-progress-card glass-panel">
+          <span class="chip" style="font-size:0.75rem;">Your Learning Progress</span>
+          
+          <div class="circle-svg-wrap">
+            <svg width="180" height="180" viewBox="0 0 180 180">
+              <!-- Background Circle -->
+              <circle cx="90" cy="90" r="70" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="12"/>
+              <!-- Animated Progress Circle -->
+              <circle id="circle-svg-fill" cx="90" cy="90" r="70" fill="none" stroke="url(#progGrad)" stroke-width="12"
+                      stroke-linecap="round" stroke-dasharray="440" stroke-dashoffset="110"
+                      transform="rotate(-90 90 90)" style="transition: stroke-dashoffset 0.8s ease;"/>
+              <defs>
+                <linearGradient id="progGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#6366f1"/>
+                  <stop offset="100%" stop-color="#10b981"/>
+                </linearGradient>
+              </defs>
+            </svg>
+            <div class="circle-progress-center">
+              <div class="circle-score-val" id="circle-score-val">75%</div>
+              <div style="font-size:0.75rem; color:var(--text-muted); font-weight:700;">OVERALL MASTERY</div>
+            </div>
+          </div>
+
+          <!-- Status Counts Breakdown -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; width:100%; margin-top:0.5rem;">
+            <div class="glass-panel" style="padding:0.75rem; text-align:center;">
+              <div style="font-size:1.3rem; font-weight:800; color:#34d399;" id="stat-completed-count">2</div>
+              <div style="font-size:0.72rem; color:var(--text-muted); font-weight:600;">COMPLETED</div>
+            </div>
+            <div class="glass-panel" style="padding:0.75rem; text-align:center;">
+              <div style="font-size:1.3rem; font-weight:800; color:#fbbf24;" id="stat-in-progress-count">1</div>
+              <div style="font-size:0.72rem; color:var(--text-muted); font-weight:600;">IN PROGRESS</div>
+            </div>
+            <div class="glass-panel" style="padding:0.75rem; text-align:center;">
+              <div style="font-size:1.3rem; font-weight:800; color:#f87171;" id="stat-critical-count">1</div>
+              <div style="font-size:0.72rem; color:var(--text-muted); font-weight:600;">CRITICAL GAP</div>
+            </div>
+            <div class="glass-panel" style="padding:0.75rem; text-align:center;">
+              <div style="font-size:1.3rem; font-weight:800; color:#94a3b8;" id="stat-not-started-count">4</div>
+              <div style="font-size:0.72rem; color:var(--text-muted); font-weight:600;">NOT STARTED</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subject-Wise Mastery Bars -->
+        <div class="glass-panel" style="padding:1.75rem;">
+          <h3 style="font-size:1.25rem; margin-bottom:1.25rem;">📊 Subject-Wise Mastery</h3>
+          <div id="subject-progress-bars">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Identified Learning Gaps Table -->
+      <div class="glass-panel" style="padding:1.75rem;">
+        <div class="section-title-row">
+          <div>
+            <h3 style="font-size:1.35rem;">🔍 AI Learning-Gap Detection Analysis</h3>
+            <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.2rem;">
+              Topics evaluated based on quiz performance. Scores below 70% automatically trigger targeted revision recommendations.
+            </p>
+          </div>
+          <button class="btn-primary" onclick="window.navigateTo('study-plan')" style="font-size:0.85rem; padding:0.5rem 1rem;">
+            View Study Schedule →
+          </button>
+        </div>
+
+        <div style="overflow-x:auto;">
+          <table class="gap-table">
+            <thead>
+              <tr>
+                <th>Topic & Subject</th>
+                <th>Gap Status</th>
+                <th>Mastery Score</th>
+                <th>AI Action Recommendation</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="gap-table-body">
+              <!-- Loaded dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Prerequisite Graph & Learning Gap Map (Section 10) -->
+      <div class="glass-panel" style="padding:1.75rem; margin-top:1.5rem;">
+        <div class="section-title-row">
+          <div>
+            <h3 style="font-size:1.35rem;">🌲 Prerequisite Tree & Learning Gap Map</h3>
+            <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.2rem;">
+              Concept dependencies (Fractions → Algebraic Variables → Linear Equations). System verifies foundational prerequisites before prescribing advanced topics.
+            </p>
+          </div>
+          <span class="chip" style="font-size:0.75rem;">Dependency Graph</span>
+        </div>
+        <div id="prereq-map-container" style="margin-top:1rem;">
+          <!-- Loaded dynamically -->
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ====================================================
+         8. PERSONALIZED STUDY PLAN (Slide 25 Mockup 9)
+         ==================================================== -->
+    <section id="view-study-plan" class="view-section">
+      <div class="glass-panel" style="padding:2rem; max-width:860px; margin:0 auto;">
+        <div class="section-title-row">
+          <div>
+            <span class="chip" style="font-size:0.75rem; margin-bottom:0.4rem;">Adaptive Learning Schedule</span>
+            <h2 style="font-size:1.85rem;">📅 My Weekly Study Plan</h2>
+          </div>
+          <button class="btn-primary" onclick="alert('Study Plan automatically synchronized with your weak topics and revision goals.')">
+            ✨ Auto-Optimize Plan
+          </button>
+        </div>
+
+        <p style="color:var(--text-secondary); margin-bottom:1.5rem; font-size:0.92rem;">
+          Check off tasks as you complete them to increase your mastery score and maintain your study streak.
+        </p>
+
+        <div class="study-tasks-list" id="study-tasks-container">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================
+         9. INTERACTIVE VISUAL LAB (Slide 25 Mockup 4 & 10)
+         ==================================================== -->
+    <section id="view-visual-lab" class="view-section">
+      <div class="section-title-row">
+        <div>
+          <h2>🔬 Interactive Visual Simulation Lab</h2>
+          <p class="subheading">
+            Directly addressing the field study finding: <em>"Diagrams, pictures, and interactive examples make Science & Math much easier to understand."</em>
+          </p>
+        </div>
+      </div>
+
+      <div class="visual-lab-grid">
+        <!-- Simulation 1: Linear Equation Graph Plotter -->
+        <div class="sim-card glass-panel">
+          <div>
+            <span class="chip" style="color:#6366f1; border-color:#6366f1; font-size:0.75rem;">Mathematics • Algebra</span>
+            <h3 style="font-size:1.25rem; margin:0.4rem 0;">Live Linear Equation Plotter (y = mx + c)</h3>
+            <p style="font-size:0.85rem; color:var(--text-secondary);">
+              Move the sliders to observe how slope (m) tilts the straight line and intercept (c) shifts it up and down!
+            </p>
+          </div>
+
+          <canvas id="graph-canvas" class="sim-canvas" width="480" height="260"></canvas>
+
+          <div id="equation-readout" style="font-family:var(--font-mono); font-size:0.88rem; background:rgba(255,255,255,0.04); padding:0.6rem 0.85rem; border-radius:8px;">
+            Equation: y = 2x - 1 | Root: x = 0.50
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-label">
+              <span>Slope (m):</span>
+              <span id="slope-val" style="color:var(--primary); font-family:var(--font-mono);">2</span>
+            </div>
+            <input type="range" id="slope-slider" class="sim-slider" min="-5" max="5" step="0.5" value="2">
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-label">
+              <span>Y-Intercept (c):</span>
+              <span id="intercept-val" style="color:var(--accent); font-family:var(--font-mono);">-1</span>
+            </div>
+            <input type="range" id="intercept-slider" class="sim-slider" min="-5" max="5" step="0.5" value="-1">
+          </div>
+        </div>
+
+        <!-- Simulation 2: Newton's Laws & Force Balance -->
+        <div class="sim-card glass-panel">
+          <div>
+            <span class="chip" style="color:#10b981; border-color:#10b981; font-size:0.75rem;">Physics • Mechanics</span>
+            <h3 style="font-size:1.25rem; margin:0.4rem 0;">Newton's 3rd Law & Balanced Forces</h3>
+            <p style="font-size:0.85rem; color:var(--text-secondary);">
+              Interactive force vector balance simulator. See action-reaction pairs in real-time.
+            </p>
+          </div>
+
+          <canvas id="force-canvas" class="sim-canvas" width="480" height="260"></canvas>
+
+          <div id="force-status-readout" style="font-size:0.85rem; background:rgba(255,255,255,0.04); padding:0.6rem 0.85rem; border-radius:8px;">
+            Balanced Force: Net Force = 0 N. Object remains at rest.
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-label">
+              <span>Push Force (Action):</span>
+              <span id="force-val" style="color:#10b981; font-family:var(--font-mono);">20 N</span>
+            </div>
+            <input type="range" id="force-slider" class="sim-slider" min="5" max="60" step="5" value="20">
+          </div>
+
+          <div style="display:flex; gap:0.65rem;">
+            <button id="toggle-balance-btn" class="btn-secondary" style="flex:1; font-size:0.82rem; padding:0.5rem;">
+              Switch to Unbalanced Force
+            </button>
+            <button id="reset-force-btn" class="btn-secondary" style="font-size:0.82rem; padding:0.5rem 0.85rem;">
+              Reset Pos
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================
+         10. CAREER GUIDANCE VIEW (Slide 25 Mockup 10)
+         ==================================================== -->
+    <section id="view-career" class="view-section">
+      <div class="section-title-row">
+        <div>
+          <h2>🚀 Career Guidance Portal</h2>
+          <p class="subheading">
+            Helping high school students discover future educational pathways and career options based on subject strengths.
+          </p>
+        </div>
+      </div>
+
+      <!-- Category Filter Tabs -->
+      <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:1.75rem;">
+        <button class="chip" onclick="window.progressTracker.loadCareerGuidance('All')">🌐 All Pathways</button>
+        <button class="chip" onclick="window.progressTracker.loadCareerGuidance('Engineering')">⚙️ Engineering</button>
+        <button class="chip" onclick="window.progressTracker.loadCareerGuidance('Medicine')">🩺 Medicine & Healthcare</button>
+        <button class="chip" onclick="window.progressTracker.loadCareerGuidance('Science & Research')">🤖 AI & Data Science</button>
+        <button class="chip" onclick="window.progressTracker.loadCareerGuidance('Arts & Humanities')">🏛️ Civil Services</button>
+        <button class="chip" onclick="window.progressTracker.loadCareerGuidance('Business & Management')">📊 Finance & CA</button>
+      </div>
+
+      <!-- Career Cards Container -->
+      <div id="career-cards-container" class="career-cards-grid">
+        <!-- Rendered dynamically -->
+      </div>
+    </section>
+
+    <!-- ====================================================
+         11. TEACHER / ADMIN PORTAL VIEW (For Mrs. Pooja & Mrs. Sushma)
+         ==================================================== -->
+    <section id="view-teacher" class="view-section">
+      <div class="glass-panel" style="padding:2rem;">
+        <div class="section-title-row">
+          <div>
+            <span class="chip" style="font-size:0.75rem; margin-bottom:0.4rem; color:#f59e0b; border-color:#f59e0b;">
+              Teacher Portal: Mrs. Pooja (Social Science) & Mrs. Sushma (Headmistress)
+            </span>
+            <h2 style="font-size:1.85rem;">👩‍🏫 Classroom Analytics & Learning Gap Summary</h2>
+          </div>
+          <button class="btn-primary" onclick="window.print()">
+            🖨️ Export Class Report
+          </button>
+        </div>
+
+        <p style="color:var(--text-secondary); margin-bottom:1.75rem; font-size:0.92rem;">
+          Aggregated diagnostic view showing which subjects and topics require classroom revision and individual mentoring.
+        </p>
+
+        <!-- Recommended Classroom Focus Banner -->
+        <div style="background:rgba(99,102,241,0.12); border-left:4px solid var(--primary); padding:1rem 1.25rem; border-radius:8px; margin-bottom:1.75rem;">
+          <strong style="color:#a5b4fc;">📌 AI Classroom Recommendation:</strong>
+          <span id="teacher-rec-box" style="color:var(--text-primary); margin-left:0.4rem;">
+            Newton's 2nd Law (F=ma) and Quadratic Equations need teacher demonstration and worked examples.
+          </span>
+        </div>
+
+        <!-- Class Performance Table -->
+        <h4 style="font-size:1.15rem; margin-bottom:0.75rem;">Topic-Wise Class Average Performance:</h4>
+        <div style="overflow-x:auto;">
+          <table class="gap-table">
+            <thead>
+              <tr>
+                <th>Topic</th>
+                <th>Subject</th>
+                <th>Class Avg Score</th>
+                <th>Attempts</th>
+                <th>Teacher Action Recommendation</th>
+              </tr>
+            </thead>
+            <tbody id="teacher-topic-stats">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================
+         12. ADMINISTRATOR DASHBOARD VIEW (Section 17)
+         ==================================================== -->
+    <section id="view-admin" class="view-section">
+      <div class="glass-panel" style="padding:2rem;">
+        <div class="section-title-row">
+          <div>
+            <span class="chip" style="font-size:0.75rem; margin-bottom:0.4rem; color:var(--primary); border-color:var(--primary);">
+              Role: System Administrator • SMVITM Platform Governance
+            </span>
+            <h2 style="font-size:1.85rem;">🛡️ Administrator & System Health Dashboard</h2>
+          </div>
+          <button class="btn-primary" onclick="window.loadAdminDashboard(); alert('System health check completed. All database models and endpoints are operating normally.');">
+            🔄 Refresh Health Check
+          </button>
+        </div>
+
+        <p style="color:var(--text-secondary); margin-bottom:1.75rem; font-size:0.92rem;">
+          Platform governance, curriculum management, role permissions, and database telemetry.
+        </p>
+
+        <!-- Metrics Grid -->
+        <div class="metrics-row" style="margin-bottom:2rem;">
+          <div class="metric-card glass-panel">
+            <div class="metric-icon" style="background:rgba(99,102,241,0.15); color:var(--primary);">👥</div>
+            <div>
+              <div class="metric-val" id="admin-total-users">4</div>
+              <div class="metric-lbl">Total Registered Users</div>
+            </div>
+          </div>
+          <div class="metric-card glass-panel">
+            <div class="metric-icon" style="background:rgba(16,185,129,0.15); color:var(--secondary);">📚</div>
+            <div>
+              <div class="metric-val" id="admin-total-subjects">9</div>
+              <div class="metric-lbl">Active Curricula Subjects</div>
+            </div>
+          </div>
+          <div class="metric-card glass-panel">
+            <div class="metric-icon" style="background:rgba(245,158,11,0.15); color:var(--accent);">📖</div>
+            <div>
+              <div class="metric-val" id="admin-total-topics">4</div>
+              <div class="metric-lbl">Curated Topics</div>
+            </div>
+          </div>
+          <div class="metric-card glass-panel">
+            <div class="metric-icon" style="background:rgba(6,182,212,0.15); color:var(--info);">🎯</div>
+            <div>
+              <div class="metric-val" id="admin-total-attempts">5</div>
+              <div class="metric-lbl">Completed Assessments</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Governance Cards Grid -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:2rem;">
+          <div class="glass-panel" style="padding:1.5rem;">
+            <h4 style="font-size:1.15rem; color:#a5b4fc; margin-bottom:0.75rem;">🔒 Privacy & System Guardrails</h4>
+            <ul style="color:var(--text-secondary); font-size:0.9rem; line-height:1.7; padding-left:1.25rem;">
+              <li><strong>Zero Permanent Labels:</strong> Students are never classified as weak; evaluations are topic-specific.</li>
+              <li><strong>Rule-Based Foundation:</strong> Scoring, spaced repetition, and hints use deterministic algorithms.</li>
+              <li><strong>Data Privacy:</strong> No sensitive student data or full answers sent to third-party services.</li>
+              <li><strong>LAN Local IP Hosting:</strong> Runs completely offline or on local Wi-Fi without cloud dependencies.</li>
+            </ul>
+          </div>
+
+          <div class="glass-panel" style="padding:1.5rem;">
+            <h4 style="font-size:1.15rem; color:#34d399; margin-bottom:0.75rem;">🗄️ Database & Storage Engine</h4>
+            <div style="font-size:0.9rem; color:var(--text-secondary); line-height:1.7;">
+              <p>• <strong>Engine:</strong> SQLite 3 with Write-Ahead Logging (WAL)</p>
+              <p>• <strong>Location:</strong> <code>learnsphere.db</code> (Local Workspace)</p>
+              <p>• <strong>Tables Active:</strong> 11 relational tables (Users, Topics, Quizzes, Hints, Misconceptions, Confidence, Flashcards, Gaps)</p>
+              <p>• <strong>Integrity Status:</strong> <span style="color:#10b981; font-weight:700;">NORMAL (All Foreign Keys Enforced)</span></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+
+  <!-- Scripts -->
+  <script src="/static/js/visual_lab.js"></script>
+  <script src="/static/js/doubt_solver.js"></script>
+  <script src="/static/js/quiz.js"></script>
+  <script src="/static/js/progress.js"></script>
+  <script src="/static/js/app.js"></script>
+
+</body>
+</html>

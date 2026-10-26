@@ -1,0 +1,4 @@
+KSEAB_Textbooks/
+venv/
+*.db
+__pycache__/
