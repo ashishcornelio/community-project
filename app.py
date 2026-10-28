@@ -62,7 +62,8 @@ def get_topics():
     if subject_id:
         cursor.execute("""
         SELECT t.id, t.subject_id, t.name, t.slug, t.grade_level, t.difficulty,
-               t.summary, t.visual_type, s.name as subject_name, s.color as subject_color
+               t.summary, t.visual_type, t.textbook_ref, t.textbook_id,
+               s.name as subject_name, s.color as subject_color, s.icon as subject_icon
         FROM topics t
         JOIN subjects s ON t.subject_id = s.id
         WHERE t.subject_id = ?
@@ -71,10 +72,11 @@ def get_topics():
     else:
         cursor.execute("""
         SELECT t.id, t.subject_id, t.name, t.slug, t.grade_level, t.difficulty,
-               t.summary, t.visual_type, s.name as subject_name, s.color as subject_color
+               t.summary, t.visual_type, t.textbook_ref, t.textbook_id,
+               s.name as subject_name, s.color as subject_color, s.icon as subject_icon
         FROM topics t
         JOIN subjects s ON t.subject_id = s.id
-        ORDER BY t.id
+        ORDER BY t.subject_id ASC, t.id ASC
         """)
     topics = [dict(row) for row in cursor.fetchall()]
     conn.close()
@@ -103,14 +105,25 @@ def get_quiz_by_topic(topic_id):
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("""
-    SELECT id, topic_id, question, option_a, option_b, option_c, option_d, correct_option, explanation
+    SELECT id, topic_id, difficulty_mode, question, option_a, option_b, option_c, option_d, correct_option, explanation
     FROM quizzes
     WHERE topic_id = ?
     ORDER BY id
     """, (topic_id,))
     quizzes = [dict(row) for row in cursor.fetchall()]
+
+    # Fetch topic details including textbook reference and subject
+    cursor.execute("""
+    SELECT t.id, t.name, t.slug, t.grade_level, t.difficulty, t.textbook_ref, t.textbook_id,
+           s.id as subject_id, s.name as subject_name, s.color as subject_color, s.icon as subject_icon
+    FROM topics t
+    JOIN subjects s ON t.subject_id = s.id
+    WHERE t.id = ?
+    """, (topic_id,))
+    topic_row = cursor.fetchone()
+    topic_meta = dict(topic_row) if topic_row else {}
     conn.close()
-    return jsonify({"success": True, "quizzes": quizzes})
+    return jsonify({"success": True, "quizzes": quizzes, "topic": topic_meta})
 
 @app.route("/api/quiz-attempts", methods=["POST"])
 def submit_quiz_attempt():
@@ -484,22 +497,41 @@ def download_textbook(book_id):
 @app.route("/api/textbooks/related/<topic_slug>", methods=["GET"])
 def get_related_textbooks(topic_slug):
     """Returns official textbook references for a topic."""
-    topic_mapping = {
-        "linear-equations": {"class": 10, "subject": "Maths"},
-        "newtons-laws-motion": {"class": 9, "subject": "Science"},
-        "photosynthesis": {"class": 10, "subject": "Science"},
-        "c-programming": {"class": 10, "subject": "English"},
-        "stack-data-structures": {"class": 10, "subject": "Maths"}
-    }
-    spec = topic_mapping.get(topic_slug, {"class": 10, "subject": "Maths"})
-
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("""
+    SELECT t.id, t.name, t.slug, t.textbook_ref, t.textbook_id, s.name as subject_name
+    FROM topics t
+    JOIN subjects s ON t.subject_id = s.id
+    WHERE t.slug = ?
+    """, (topic_slug,))
+    topic_row = cursor.fetchone()
+
+    prescribed_book = None
+    if topic_row and topic_row["textbook_id"]:
+        cursor.execute("SELECT * FROM textbooks WHERE id = ?", (topic_row["textbook_id"],))
+        p_row = cursor.fetchone()
+        if p_row:
+            prescribed_book = dict(p_row)
+            prescribed_book["read_url"] = f"/api/textbooks/read/{prescribed_book['id']}"
+            prescribed_book["download_url"] = f"/api/textbooks/download/{prescribed_book['id']}"
+
+    # Determine subject for additional class 10/9 textbooks
+    sub_key = "Maths"
+    if topic_row:
+        s_name = topic_row["subject_name"].lower()
+        if "math" in s_name: sub_key = "Maths"
+        elif "sci" in s_name: sub_key = "Science"
+        elif "kan" in s_name: sub_key = "Kannada"
+        elif "eng" in s_name: sub_key = "English"
+        elif "hin" in s_name: sub_key = "Hindi"
+        elif "soc" in s_name: sub_key = "Science"
+
+    cursor.execute("""
     SELECT * FROM textbooks 
-    WHERE class_num = ? AND subject = ?
+    WHERE class_num = 10 AND subject = ?
     ORDER BY medium ASC, title ASC
-    """, (spec["class"], spec["subject"]))
+    """, (sub_key,))
     books = [dict(row) for row in cursor.fetchall()]
     conn.close()
 
@@ -507,7 +539,13 @@ def get_related_textbooks(topic_slug):
         b["read_url"] = f"/api/textbooks/read/{b['id']}"
         b["download_url"] = f"/api/textbooks/download/{b['id']}"
 
-    return jsonify({"success": True, "topic_slug": topic_slug, "related_books": books})
+    return jsonify({
+        "success": True,
+        "topic_slug": topic_slug,
+        "prescribed_book": prescribed_book,
+        "textbook_ref": topic_row["textbook_ref"] if topic_row else "Karnataka State Board DSERT",
+        "related_books": books
+    })
 
 # ==========================================
 # EXAMINATION PREPARATION CENTRE (SECTION 14)

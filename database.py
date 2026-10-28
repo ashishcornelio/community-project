@@ -81,6 +81,8 @@ def init_db():
         formula_box TEXT,
         visual_type TEXT, -- 'linear_graph', 'force_sim', 'photosynthesis', 'c_pointer', 'none'
         prerequisite_text TEXT,
+        textbook_ref TEXT,
+        textbook_id INTEGER,
         FOREIGN KEY (subject_id) REFERENCES subjects(id)
     );
     """)
@@ -294,6 +296,12 @@ def init_db():
     seed_textbooks(conn)
     seed_exam_materials(conn)
     conn.close()
+
+    try:
+        from seed_curriculum import seed as seed_curriculum_data
+        seed_curriculum_data()
+    except Exception as e:
+        print("Curriculum sync:", e)
 
 def seed_master_data(conn):
     cursor = conn.cursor()
