@@ -26,13 +26,16 @@
     <nav class="nav-tabs">
       <button class="nav-tab-btn active" data-view="landing">🏠 Home</button>
       <button class="nav-tab-btn" data-view="dashboard">📊 Dashboard</button>
+      <button class="nav-tab-btn" data-view="textbooks">📚 Textbooks (86)</button>
       <button class="nav-tab-btn" data-view="learn">📖 Learn & Notes</button>
-      <button class="nav-tab-btn" data-view="doubt-solver">🤖 AI Doubt Solver</button>
+      <button class="nav-tab-btn" data-view="exam-prep">📝 Exam Prep</button>
       <button class="nav-tab-btn" data-view="quiz">🎯 Adaptive Quiz</button>
+      <button class="nav-tab-btn" data-view="doubt-solver">🤖 AI Doubt Solver</button>
       <button class="nav-tab-btn" data-view="notes">📝 Short Notes</button>
       <button class="nav-tab-btn" data-view="progress">📈 Progress & Gaps</button>
-      <button class="nav-tab-btn" data-view="study-plan">📅 Study Plan</button>
       <button class="nav-tab-btn" data-view="visual-lab">🔬 Visual Lab</button>
+      <button class="nav-tab-btn" data-view="study-plan">📅 Study Plan</button>
+      <button class="nav-tab-btn" data-view="bookmarks">⭐ Bookmarks</button>
       <button class="nav-tab-btn" data-view="career">🚀 Career</button>
       <button class="nav-tab-btn" data-view="teacher">👩‍🏫 Teacher View</button>
       <button class="nav-tab-btn" data-view="admin">🛡️ Admin</button>
@@ -96,7 +99,9 @@
 
         <!-- Quick Feature Chips -->
         <div class="feature-chips">
+          <span class="chip" onclick="window.navigateTo('textbooks')">📚 86 Karnataka Textbooks</span>
           <span class="chip" onclick="window.navigateTo('learn')">⚡ AI Explanations</span>
+          <span class="chip" onclick="window.navigateTo('exam-prep')">📝 SSLC Exam Prep</span>
           <span class="chip" onclick="window.navigateTo('quiz')">🎯 Practice Questions</span>
           <span class="chip" onclick="window.navigateTo('notes')">📝 Short Notes</span>
           <span class="chip" onclick="document.getElementById('global-lang-select').value='kn'; window.appState.currentLanguage='kn'; window.navigateTo('learn');">🗣️ Kannada & Hindi Support</span>
@@ -293,25 +298,25 @@
       </div>
 
       <div class="shortcuts-grid">
+        <button class="shortcut-btn" onclick="window.navigateTo('textbooks')">
+          <span class="shortcut-icon">📚</span>
+          <span>Textbooks (86)</span>
+        </button>
+        <button class="shortcut-btn" onclick="window.navigateTo('exam-prep')">
+          <span class="shortcut-icon">🎯</span>
+          <span>SSLC Exam Prep</span>
+        </button>
         <button class="shortcut-btn" onclick="window.navigateTo('learn')">
           <span class="shortcut-icon">📖</span>
           <span>AI Tutor</span>
         </button>
         <button class="shortcut-btn" onclick="window.navigateTo('quiz')">
-          <span class="shortcut-icon">🎯</span>
-          <span>Practice Quiz</span>
+          <span class="shortcut-icon">⚡</span>
+          <span>Adaptive Quiz</span>
         </button>
         <button class="shortcut-btn" onclick="window.navigateTo('notes')">
           <span class="shortcut-icon">📝</span>
           <span>Short Notes</span>
-        </button>
-        <button class="shortcut-btn" onclick="window.navigateTo('doubt-solver')">
-          <span class="shortcut-icon">🤖</span>
-          <span>Doubt Solver</span>
-        </button>
-        <button class="shortcut-btn" onclick="window.navigateTo('study-plan')">
-          <span class="shortcut-icon">📅</span>
-          <span>Study Plan</span>
         </button>
         <button class="shortcut-btn" onclick="window.navigateTo('visual-lab')">
           <span class="shortcut-icon">🔬</span>
@@ -327,6 +332,20 @@
 
       <div id="dash-subjects-grid" class="subjects-grid">
         <!-- Rendered dynamically by loadDashboardSubjects() -->
+      </div>
+
+      <!-- Prescribed Karnataka State Board Textbooks on Dashboard -->
+      <div class="section-title-row" style="margin-top:2.5rem;">
+        <div style="display:flex; align-items:center; gap:0.6rem;">
+          <h3 style="margin:0;">📖 Prescribed Karnataka State Board Textbooks</h3>
+          <span class="chip" style="font-size:0.75rem; border-color:var(--secondary); color:#34d399;">100% Offline Access</span>
+        </div>
+        <button class="btn-secondary" style="font-size:0.82rem; padding:0.4rem 0.85rem;" onclick="window.navigateTo('textbooks')">
+          Browse All 86 Volumes →
+        </button>
+      </div>
+      <div id="dash-textbooks-row" class="textbooks-grid" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));">
+        <!-- Rendered by loadDashboardTextbooks() -->
       </div>
     </section>
 
@@ -407,6 +426,9 @@
             </button>
           </div>
 
+
+          <!-- Official Textbook Reference Banner -->
+          <div id="topic-textbook-ref-box" style="display:none; margin-bottom:1.25rem;"></div>
 
           <!-- Formula Box -->
           <div id="topic-formula-card" class="formula-box-card">
@@ -978,7 +1000,155 @@
       </div>
     </section>
 
+    <!-- ====================================================
+         13. OFFICIAL KARNATAKA TEXTBOOKS LIBRARY (SECTION 5 & 21)
+         ==================================================== -->
+    <section id="view-textbooks" class="view-section">
+      <div class="view-header">
+        <div class="hero-pill-badge">
+          <span>📚 Curriculum Aligned</span> • <span>DSERT Karnataka State Board</span> • <span>100% Offline</span>
+        </div>
+        <h2 class="view-title">Official Karnataka State Board Textbooks Library</h2>
+        <p class="view-subtitle">
+          86 Official DSERT / KTBS Textbooks for Classes 8, 9, and 10 in English, Kannada, and Hindi Mediums. Complete offline access across your local network.
+        </p>
+      </div>
+
+      <!-- Live Search & Filters Ribbon -->
+      <div class="glass-panel" style="padding:1.5rem; margin-bottom:2rem;">
+        <div style="display:flex; flex-wrap:wrap; gap:1rem; align-items:center; justify-content:space-between; margin-bottom:1.25rem;">
+          <!-- Search input -->
+          <div style="flex:1; min-width:280px; position:relative;">
+            <input type="text" id="textbooks-search-input" class="search-input" 
+                   placeholder="🔍 Search 86 textbooks by name, subject, or part..." style="width:100%; padding:0.85rem 1.2rem;">
+          </div>
+          <!-- Class Tabs -->
+          <div class="format-ribbon" id="textbooks-class-tabs" style="margin:0;">
+            <button class="format-ribbon-btn active" data-class="all">All Classes (86)</button>
+            <button class="format-ribbon-btn" data-class="10">Class 10 (32)</button>
+            <button class="format-ribbon-btn" data-class="9">Class 9 (26)</button>
+            <button class="format-ribbon-btn" data-class="8">Class 8 (28)</button>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:1rem; align-items:center;">
+          <!-- Medium Filter -->
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <span style="font-size:0.85rem; color:var(--text-muted);">Medium:</span>
+            <select id="textbooks-medium-select" class="lang-select" style="min-width:160px;">
+              <option value="All">All Mediums</option>
+              <option value="english-medium">🇬🇧 English Medium</option>
+              <option value="kannada-medium">🇮🇳 ಕನ್ನಡ ಮಾಧ್ಯಮ (Kannada)</option>
+              <option value="hindi-medium">🇮🇳 हिन्दी माध्यम (Hindi)</option>
+            </select>
+          </div>
+
+          <!-- Subject Filter -->
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <span style="font-size:0.85rem; color:var(--text-muted);">Subject:</span>
+            <select id="textbooks-subject-select" class="lang-select" style="min-width:150px;">
+              <option value="All">All Subjects</option>
+              <option value="Maths">📐 Mathematics</option>
+              <option value="Science">🔬 Science</option>
+              <option value="English">📖 English</option>
+              <option value="Kannada">📝 Kannada</option>
+              <option value="Hindi">✍️ Hindi</option>
+            </select>
+          </div>
+
+          <!-- Summary info chip -->
+          <div id="textbooks-summary-chip" class="chip" style="margin-left:auto; font-size:0.82rem; color:var(--secondary); border-color:var(--secondary);">
+            Showing: 86 Books (881.4 MB on disk)
+          </div>
+        </div>
+      </div>
+
+      <!-- Textbooks Catalog Grid -->
+      <div id="textbooks-grid" class="textbooks-grid">
+        <!-- Rendered by window.renderTextbooks() -->
+      </div>
+    </section>
+
+    <!-- ====================================================
+         14. EXAMINATION PREPARATION CENTRE (SECTION 14)
+         ==================================================== -->
+    <section id="view-exam-prep" class="view-section">
+      <div class="view-header">
+        <div class="hero-pill-badge">
+          <span>🎯 Board Exam Blueprints</span> • <span>SSLC 2026 Model Papers</span> • <span>Formula Master</span>
+        </div>
+        <h2 class="view-title">Examination Preparation Centre</h2>
+        <p class="view-subtitle">
+          Curriculum-aligned revision materials, Karnataka SSLC board pattern mock examinations, step-by-step marking rubrics, and formula blueprints.
+        </p>
+      </div>
+
+      <!-- Countdown Timers -->
+      <div id="exam-countdown-container" class="exam-countdown-grid"></div>
+
+      <!-- Sub-Tabs Navigation -->
+      <div class="format-ribbon" style="margin-bottom:2rem;">
+        <button class="format-ribbon-btn active" id="tab-exam-formulas" onclick="window.switchExamPrepTab('formulas')">📐 Formula Sheets & Blueprints</button>
+        <button class="format-ribbon-btn" id="tab-exam-mock" onclick="window.switchExamPrepTab('mock')">⏱️ Timed Model Mock Test (45 Mins)</button>
+        <button class="format-ribbon-btn" id="tab-exam-definitions" onclick="window.switchExamPrepTab('definitions')">💡 High-Yield Definitions & Terms</button>
+      </div>
+
+      <!-- Content Area -->
+      <div id="exam-prep-content-area"></div>
+    </section>
+
+    <!-- ====================================================
+         15. BOOKMARKS & SAVED MATERIALS (SECTION 19)
+         ==================================================== -->
+    <section id="view-bookmarks" class="view-section">
+      <div class="view-header">
+        <div class="hero-pill-badge">
+          <span>⭐ Personal Study Archive</span> • <span>Fast Retrieval</span>
+        </div>
+        <h2 class="view-title">My Bookmarks & Saved Materials</h2>
+        <p class="view-subtitle">
+          Quickly access your pinned topic notes, formula blueprints, and frequently referenced textbooks.
+        </p>
+      </div>
+
+      <div id="bookmarks-container" class="glass-panel" style="padding:2rem;">
+        <!-- Rendered dynamically -->
+      </div>
+    </section>
+
   </main>
+
+  <!-- ====================================================
+       EMBEDDED PDF TEXTBOOK READER MODAL
+       ==================================================== -->
+  <div id="textbook-modal" class="modal-overlay" style="display:none;" onclick="if(event.target === this) window.closeTextbookReader();">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div style="display:flex; align-items:center; gap:0.75rem; overflow:hidden;">
+          <span style="font-size:1.4rem;">📖</span>
+          <div>
+            <h4 id="textbook-modal-title" style="font-size:1.05rem; white-space:nowrap; text-overflow:ellipsis; overflow:hidden; max-width:650px;">
+              Karnataka State Board Textbook
+            </h4>
+            <span id="textbook-modal-subtitle" style="font-size:0.78rem; color:var(--text-muted);">Official DSERT PDF</span>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:0.6rem; flex-shrink:0;">
+          <a id="textbook-modal-download-btn" href="#" class="btn-secondary" style="font-size:0.82rem; padding:0.45rem 0.9rem;" download>
+            ⬇️ Download PDF
+          </a>
+          <a id="textbook-modal-tab-btn" href="#" target="_blank" class="btn-secondary" style="font-size:0.82rem; padding:0.45rem 0.9rem;">
+            ↗️ Open in New Tab
+          </a>
+          <button class="btn-secondary" onclick="window.closeTextbookReader()" style="font-size:1.1rem; padding:0.35rem 0.75rem;">
+            ✕
+          </button>
+        </div>
+      </div>
+      <iframe id="textbook-modal-iframe" class="modal-iframe" src="about:blank"></iframe>
+    </div>
+  </div>
 
 
   <!-- Scripts -->

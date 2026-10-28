@@ -246,8 +246,53 @@ def init_db():
     );
     """)
 
+    # Official Textbooks Table (Curriculum & DSERT Karnataka Board)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS textbooks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        class_num INTEGER NOT NULL,
+        subject TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        medium TEXT NOT NULL,
+        title TEXT NOT NULL,
+        filename TEXT NOT NULL,
+        source_page TEXT,
+        pdf_url TEXT,
+        file_size_mb REAL DEFAULT 0,
+        file_exists INTEGER DEFAULT 1
+    );
+    """)
+
+    # Examination Preparation Centre Table (Model Papers, Formula Sheets, Definitions)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS exam_materials (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        grade_level TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        title TEXT NOT NULL,
+        material_type TEXT NOT NULL, -- 'formula_sheet', 'model_paper', 'short_answer', 'high_yield_revision'
+        content_json TEXT NOT NULL,
+        year_or_tag TEXT DEFAULT '2026 Board Pattern'
+    );
+    """)
+
+    # Bookmarks Table (For student saved notes and textbooks)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS bookmarks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        item_type TEXT NOT NULL, -- 'topic', 'textbook', 'formula', 'flashcard'
+        item_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+    """)
+
     conn.commit()
     seed_master_data(conn)
+    seed_textbooks(conn)
+    seed_exam_materials(conn)
     conn.close()
 
 def seed_master_data(conn):
@@ -602,6 +647,243 @@ def seed_master_data(conn):
 
     conn.commit()
 
+def seed_textbooks(conn):
+    """Populates official Karnataka State Board / DSERT textbooks from manifest.csv."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM textbooks")
+    if cursor.fetchone()[0] > 0:
+        return
+
+    manifest_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "text books", "manifest.csv")
+    if not os.path.exists(manifest_path):
+        return
+
+    import csv
+    base_books_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "text books")
+    books_data = []
+
+    try:
+        with open(manifest_path, encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            for r in reader:
+                fname = r.get("filename", "").strip()
+                full_path = os.path.join(base_books_dir, fname)
+                exists = 1 if os.path.exists(full_path) else 0
+                size_mb = round(os.path.getsize(full_path) / (1024 * 1024), 2) if exists else 0.0
+
+                class_num = int(r.get("class", "10"))
+                subject = r.get("subject", "").strip()
+                kind = r.get("kind", "").strip()
+                medium = r.get("medium", "").strip()
+                title = r.get("title", "").strip()
+                source_page = r.get("source_page", "").strip()
+                pdf_url = r.get("pdf_url", "").strip()
+
+                books_data.append((
+                    class_num, subject, kind, medium, title, fname, source_page, pdf_url, size_mb, exists
+                ))
+
+        cursor.executemany("""
+        INSERT INTO textbooks (class_num, subject, kind, medium, title, filename, source_page, pdf_url, file_size_mb, file_exists)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, books_data)
+        conn.commit()
+    except Exception as e:
+        print(f"[Error seeding textbooks]: {e}")
+
+def seed_exam_materials(conn):
+    """Populates Examination Preparation Centre blueprints, formula sheets, and model papers."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM exam_materials")
+    if cursor.fetchone()[0] > 0:
+        return
+
+    # 1. Formula Sheets
+    math_formulas = {
+        "title": "SSLC Class 10 Mathematics Complete Formula Blueprint",
+        "description": "Essential formulas, condition rules, and theorem statements verified for Karnataka State Board & CBSE 2026.",
+        "sections": [
+            {
+                "topic": "Pair of Linear Equations in Two Variables",
+                "rules": [
+                    {"formula": "a1/a2 ≠ b1/b2", "interpretation": "Intersecting Lines • Exactly One (Unique) Solution • Consistent"},
+                    {"formula": "a1/a2 = b1/b2 = c1/c2", "interpretation": "Coincident Lines • Infinitely Many Solutions • Dependent / Consistent"},
+                    {"formula": "a1/a2 = b1/b2 ≠ c1/c2", "interpretation": "Parallel Lines • No Solution • Inconsistent"},
+                    {"formula": "y = mx + c", "interpretation": "Slope-Intercept Form: m = slope, c = y-intercept"}
+                ]
+            },
+            {
+                "topic": "Quadratic Equations",
+                "rules": [
+                    {"formula": "x = [-b ± √(b² - 4ac)] / (2a)", "interpretation": "Quadratic Formula for standard ax² + bx + c = 0"},
+                    {"formula": "D = b² - 4ac", "interpretation": "Discriminant (D > 0: 2 Real distinct; D = 0: 2 Real equal; D < 0: No real roots)"}
+                ]
+            },
+            {
+                "topic": "Arithmetic Progressions (AP)",
+                "rules": [
+                    {"formula": "an = a + (n - 1)d", "interpretation": "nth term of AP (a = first term, d = common difference)"},
+                    {"formula": "Sn = n/2 [2a + (n - 1)d] = n/2 [a + l]", "interpretation": "Sum of first n terms (l = last term)"}
+                ]
+            },
+            {
+                "topic": "Introduction to Trigonometry",
+                "rules": [
+                    {"formula": "sin²θ + cos²θ = 1", "interpretation": "Primary Pythagorean trigonometric identity"},
+                    {"formula": "1 + tan²θ = sec²θ", "interpretation": "Tangent-secant relation"},
+                    {"formula": "1 + cot²θ = csc²θ", "interpretation": "Cotangent-cosecant relation"},
+                    {"formula": "sin(90° - θ) = cos θ,  tan(90° - θ) = cot θ", "interpretation": "Complementary angle ratios"}
+                ]
+            }
+        ]
+    }
+
+    science_formulas = {
+        "title": "Class 10 Science Essential Laws, Equations & Constants",
+        "description": "Physics & Chemistry key laws, circuit equations, lens rules, and chemical reactions.",
+        "sections": [
+            {
+                "topic": "Newton's Laws of Motion & Gravitation",
+                "rules": [
+                    {"formula": "F = m · a", "interpretation": "Second Law: Force = Mass × Acceleration (Unit: Newton, N)"},
+                    {"formula": "p = m · v", "interpretation": "Linear Momentum (Unit: kg·m/s)"},
+                    {"formula": "F12 = -F21", "interpretation": "Third Law: Action & Reaction are equal, opposite, and on different bodies"},
+                    {"formula": "F = G · (m1 · m2) / r²", "interpretation": "Universal Law of Gravitation (G = 6.674 × 10⁻¹¹ N·m²/kg²)"}
+                ]
+            },
+            {
+                "topic": "Electricity & Magnetism",
+                "rules": [
+                    {"formula": "V = I · R", "interpretation": "Ohm's Law (V in Volts, I in Amperes, R in Ohms Ω)"},
+                    {"formula": "Rs = R1 + R2 + R3", "interpretation": "Equivalent resistance in series circuit"},
+                    {"formula": "1/Rp = 1/R1 + 1/R2 + 1/R3", "interpretation": "Equivalent resistance in parallel circuit"},
+                    {"formula": "H = I² · R · t", "interpretation": "Joule's Law of Heating"},
+                    {"formula": "P = V · I = I²R = V²/R", "interpretation": "Electric Power (Unit: Watt, W)"}
+                ]
+            },
+            {
+                "topic": "Light: Reflection & Refraction",
+                "rules": [
+                    {"formula": "1/f = 1/v + 1/u", "interpretation": "Spherical Mirror formula (f = focal length, u = object dist, v = image dist)"},
+                    {"formula": "1/f = 1/v - 1/u", "interpretation": "Thin Lens formula"},
+                    {"formula": "P = 1 / f (in metres)", "interpretation": "Power of a Lens (Unit: Dioptre, D)"}
+                ]
+            }
+        ]
+    }
+
+    # 2. Model Mock Exam Paper
+    mock_math_paper = {
+        "title": "Karnataka SSLC 2026 Model Mock Examination: Mathematics",
+        "duration_minutes": 45,
+        "total_marks": 25,
+        "instructions": "Attempt all sections. Calculators are not permitted. Step-wise marks will be awarded.",
+        "questions": [
+            {
+                "id": "q1",
+                "type": "mcq",
+                "marks": 1,
+                "text": "The pair of lines represented by equations 2x + 3y = 9 and 4x + 6y = 18 are:",
+                "options": ["A) Intersecting at one point", "B) Parallel lines with no solution", "C) Coincident lines with infinite solutions", "D) Perpendicular to each other"],
+                "correct_option": "C",
+                "explanation": "Here a1/a2 = 2/4 = 1/2, b1/b2 = 3/6 = 1/2, and c1/c2 = 9/18 = 1/2. Since a1/a2 = b1/b2 = c1/c2, the lines are coincident with infinitely many solutions."
+            },
+            {
+                "id": "q2",
+                "type": "mcq",
+                "marks": 1,
+                "text": "If the discriminant of quadratic equation 2x² - 4x + k = 0 is 0, the value of k is:",
+                "options": ["A) 1", "B) 2", "C) 4", "D) -2"],
+                "correct_option": "B",
+                "explanation": "Discriminant D = b² - 4ac = (-4)² - 4(2)(k) = 16 - 8k = 0 => 8k = 16 => k = 2."
+            },
+            {
+                "id": "q3",
+                "type": "short_answer",
+                "marks": 2,
+                "text": "Solve the system of equations by elimination: 3x + 2y = 11 and 2x + 3y = 4.",
+                "model_answer": "Multiplying (1) by 3: 9x + 6y = 33. Multiplying (2) by 2: 4x + 6y = 8. Subtracting: 5x = 25 => x = 5. Substituting x = 5 in (1): 3(5) + 2y = 11 => 15 + 2y = 11 => 2y = -4 => y = -2. Therefore, x = 5, y = -2."
+            },
+            {
+                "id": "q4",
+                "type": "long_answer",
+                "marks": 4,
+                "text": "Solve graphically: x + y = 5 and 2x - y = 4. State the coordinates of the intersection point.",
+                "model_answer": "Table for x + y = 5: when x=0, y=5; when x=3, y=2; when x=5, y=0. Table for 2x - y = 4 => y = 2x - 4: when x=0, y=-4; when x=2, y=0; when x=3, y=2. Both lines intersect at (3, 2). Hence the unique solution is x = 3, y = 2."
+            }
+        ]
+    }
+
+    mock_science_paper = {
+        "title": "Karnataka SSLC 2026 Model Mock Examination: Science (Physics & Biology)",
+        "duration_minutes": 45,
+        "total_marks": 25,
+        "instructions": "Answer with labelled diagrams where required. Keep explanations concise and step-oriented.",
+        "questions": [
+            {
+                "id": "sq1",
+                "type": "mcq",
+                "marks": 1,
+                "text": "A swimmer pushes the water backward to move forward. This illustrates which fundamental law?",
+                "options": ["A) Newton's First Law (Inertia)", "B) Newton's Second Law (F = ma)", "C) Newton's Third Law (Action-Reaction)", "D) Law of Conservation of Energy"],
+                "correct_option": "C",
+                "explanation": "Action: Swimmer exerts backward force on water. Reaction: Water exerts an equal and opposite forward force on swimmer."
+            },
+            {
+                "id": "sq2",
+                "type": "short_answer",
+                "marks": 2,
+                "text": "Two resistors of 6 Ω and 3 Ω are connected in parallel across a 12 V battery. Calculate effective resistance and total current.",
+                "model_answer": "1/Rp = 1/6 + 1/3 = (1 + 2)/6 = 3/6 = 1/2 => Rp = 2 Ω. Total Current I = V / Rp = 12 V / 2 Ω = 6 A."
+            },
+            {
+                "id": "sq3",
+                "type": "long_answer",
+                "marks": 4,
+                "text": "State the events occurring during Photosynthesis and write the balanced chemical equation.",
+                "model_answer": "Balanced Equation: 6CO2 + 12H2O --(Sunlight, Chlorophyll)--> C6H12O6 + 6O2 + 6H2O. Three Major Events: 1) Absorption of light energy by chlorophyll. 2) Conversion of light energy into chemical energy and splitting of water molecules into hydrogen and oxygen. 3) Reduction of carbon dioxide into carbohydrates."
+            }
+        ]
+    }
+
+    # 3. High Yield Definitions & Revision Blueprint
+    definitions_data = {
+        "title": "SSLC High-Yield Definitions & Frequently Confused Terms",
+        "description": "Rapid recall cards of definitions asked in 1-mark and 2-mark board questions.",
+        "items": [
+            {"term": "Consistent System", "definition": "A system of linear equations that has at least one solution (either unique or infinitely many)."},
+            {"term": "Inconsistent System", "definition": "A system of linear equations that has no solution because the lines are strictly parallel."},
+            {"term": "Inertia", "definition": "The natural tendency of an object to resist any change in its state of rest or of uniform motion along a straight line."},
+            {"term": "Ohm's Law", "definition": "The potential difference across the ends of a given metallic wire in an electric circuit is directly proportional to the current flowing through it, provided its temperature remains constant."},
+            {"term": "Photosynthesis", "definition": "The biological process by which green plants and certain other organisms transform light energy into chemical energy in the form of sugars from CO2 and water."}
+        ]
+    }
+
+    materials = [
+        ("Class 10", "Mathematics", "SSLC Mathematics Complete Formula Blueprint", "formula_sheet", json.dumps(math_formulas), "2026 Board Pattern"),
+        ("Class 10", "Science", "Class 10 Science Essential Laws & Equations Sheet", "formula_sheet", json.dumps(science_formulas), "2026 Board Pattern"),
+        ("Class 10", "Mathematics", "SSLC 2026 Model Mock Paper: Mathematics", "model_paper", json.dumps(mock_math_paper), "Model Paper 1"),
+        ("Class 10", "Science", "SSLC 2026 Model Mock Paper: Science", "model_paper", json.dumps(mock_science_paper), "Model Paper 1"),
+        ("Class 10", "General", "SSLC High-Yield Definitions & Frequently Confused Terms", "high_yield_revision", json.dumps(definitions_data), "Revision Master")
+    ]
+
+    cursor.executemany("""
+    INSERT INTO exam_materials (grade_level, subject, title, material_type, content_json, year_or_tag)
+    VALUES (?, ?, ?, ?, ?, ?)
+    """, materials)
+
+    # Seed sample bookmarks for student Arjun
+    cursor.execute("""
+    INSERT INTO bookmarks (user_id, item_type, item_id, title)
+    VALUES 
+    (1, 'topic', 'linear-equations', 'Linear Equations in Two Variables (Class 10)'),
+    (1, 'formula', 'sslc-maths-formulas', 'SSLC Mathematics Complete Formula Blueprint'),
+    (1, 'textbook', '10-maths-p1-en', 'Karnataka 10th Class MATHEMATICS PART-1 (English Medium)')
+    """)
+
+    conn.commit()
+
 if __name__ == "__main__":
     init_db()
     print("LearnSphere Master Database Initialized successfully.")
+

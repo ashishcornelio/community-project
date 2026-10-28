@@ -58,6 +58,12 @@ window.navigateTo = function(viewName) {
     window.progressTracker.loadStudyPlan();
   } else if (viewName === "admin" && window.loadAdminDashboard) {
     window.loadAdminDashboard();
+  } else if (viewName === "textbooks" && window.loadTextbooks) {
+    window.loadTextbooks();
+  } else if (viewName === "exam-prep" && window.loadExamPrep) {
+    window.loadExamPrep();
+  } else if (viewName === "bookmarks" && window.loadBookmarks) {
+    window.loadBookmarks();
   }
 };
 
@@ -297,6 +303,9 @@ async function loadDashboardSubjects() {
         </div>
       </div>
     `).join("");
+
+    // Load featured textbooks row on dashboard
+    loadDashboardTextbooks();
   } catch (err) {
     console.error("Error loading subjects:", err);
   }
@@ -370,6 +379,9 @@ window.loadTopicContent = async function(slug) {
     }
 
     if (summaryEl) summaryEl.textContent = topic.summary;
+
+    // Load official Karnataka textbook reference for this topic
+    loadRelatedTextbookReference(topic.slug);
 
     if (formulaBox) {
       if (topic.formula_box) {
@@ -804,3 +816,562 @@ function renderMindMapSVG(mindMapData, container) {
     </div>
   `;
 }
+
+// ==========================================
+// 13. OFFICIAL TEXTBOOKS LIBRARY (SECTION 5 & 21)
+// ==========================================
+window.textbookFilters = {
+  class_num: "all",
+  medium: "All",
+  subject: "All",
+  search: ""
+};
+
+window.loadTextbooks = async function() {
+  setupTextbookControls();
+  await window.fetchAndRenderTextbooks();
+};
+
+function setupTextbookControls() {
+  const searchIn = document.getElementById("textbooks-search-input");
+  const medSelect = document.getElementById("textbooks-medium-select");
+  const subSelect = document.getElementById("textbooks-subject-select");
+  const classTabs = document.querySelectorAll("#textbooks-class-tabs .format-ribbon-btn");
+
+  if (searchIn && !searchIn.dataset.hooked) {
+    searchIn.dataset.hooked = "true";
+    let timer = null;
+    searchIn.addEventListener("input", () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        window.textbookFilters.search = searchIn.value.trim();
+        window.fetchAndRenderTextbooks();
+      }, 300);
+    });
+  }
+
+  if (medSelect && !medSelect.dataset.hooked) {
+    medSelect.dataset.hooked = "true";
+    medSelect.addEventListener("change", () => {
+      window.textbookFilters.medium = medSelect.value;
+      window.fetchAndRenderTextbooks();
+    });
+  }
+
+  if (subSelect && !subSelect.dataset.hooked) {
+    subSelect.dataset.hooked = "true";
+    subSelect.addEventListener("change", () => {
+      window.textbookFilters.subject = subSelect.value;
+      window.fetchAndRenderTextbooks();
+    });
+  }
+
+  classTabs.forEach(tab => {
+    if (!tab.dataset.hooked) {
+      tab.dataset.hooked = "true";
+      tab.addEventListener("click", () => {
+        classTabs.forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        window.textbookFilters.class_num = tab.dataset.class;
+        window.fetchAndRenderTextbooks();
+      });
+    }
+  });
+}
+
+window.fetchAndRenderTextbooks = async function() {
+  const grid = document.getElementById("textbooks-grid");
+  const summaryChip = document.getElementById("textbooks-summary-chip");
+  if (!grid) return;
+
+  grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:3rem;"><div class="chip">Loading official Karnataka textbooks from disk... ⏳</div></div>`;
+
+  try {
+    let url = "/api/textbooks?";
+    if (window.textbookFilters.class_num !== "all") {
+      url += `class=${window.textbookFilters.class_num}&`;
+    }
+    if (window.textbookFilters.medium !== "All") {
+      url += `medium=${encodeURIComponent(window.textbookFilters.medium)}&`;
+    }
+    if (window.textbookFilters.subject !== "All") {
+      url += `subject=${encodeURIComponent(window.textbookFilters.subject)}&`;
+    }
+    if (window.textbookFilters.search) {
+      url += `search=${encodeURIComponent(window.textbookFilters.search)}&`;
+    }
+
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data.success) return;
+
+    if (summaryChip) {
+      summaryChip.textContent = `Showing: ${data.total} Books (${data.total_size_mb} MB on local disk)`;
+    }
+
+    if (data.textbooks.length === 0) {
+      grid.innerHTML = `
+        <div style="grid-column:1/-1; text-align:center; padding:3.5rem;" class="glass-panel">
+          <div style="font-size:3rem; margin-bottom:1rem;">🔍</div>
+          <h3>No matching textbooks found</h3>
+          <p style="color:var(--text-muted); font-size:0.95rem;">Try adjusting the subject, medium, or search query filters.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const subjectIcons = {
+      "Maths": "📐",
+      "Science": "🔬",
+      "English": "📖",
+      "Kannada": "📝",
+      "Hindi": "✍️"
+    };
+
+    const mediumBadges = {
+      "english-medium": { flag: "🇬🇧", label: "English Medium", color: "#6366f1" },
+      "kannada-medium": { flag: "🇮🇳", label: "ಕನ್ನಡ ಮಾಧ್ಯಮ", color: "#10b981" },
+      "hindi-medium": { flag: "🇮🇳", label: "हिन्दी माध्यम", color: "#ec4899" }
+    };
+
+    grid.innerHTML = data.textbooks.map(b => {
+      const sIcon = subjectIcons[b.subject] || "📚";
+      const med = mediumBadges[b.medium] || { flag: "🌐", label: b.medium, color: "#6366f1" };
+      const safeTitle = b.title.replace(/'/g, "\\'");
+
+      return `
+        <div class="textbook-card">
+          <div>
+            <div class="textbook-badges-row">
+              <span class="chip" style="font-size:0.75rem; border-color:${med.color}; color:${med.color};">
+                ${med.flag} ${med.label}
+              </span>
+              <span class="chip" style="font-size:0.75rem; border-color:rgba(255,255,255,0.2);">
+                Class ${b.class_num}
+              </span>
+              <span class="chip" style="font-size:0.75rem; border-color:rgba(255,255,255,0.2);">
+                ${sIcon} ${b.subject}
+              </span>
+            </div>
+
+            <div class="textbook-title" title="${b.title}">${b.title}</div>
+          </div>
+
+          <div>
+            <div class="textbook-meta">
+              <span>💾 Size: <strong>${b.file_size_mb} MB</strong></span>
+              <span style="color:#34d399;">✓ 100% Offline Ready</span>
+            </div>
+
+            <div class="textbook-actions">
+              <button class="btn-primary" style="font-size:0.85rem; padding:0.55rem 0.8rem;" 
+                      onclick="window.openTextbookReader(${b.id}, '${safeTitle}', '${b.read_url}', '${b.download_url}')">
+                📖 Read Online
+              </button>
+              <a href="${b.download_url}" class="btn-secondary" style="font-size:0.85rem; padding:0.55rem 0.8rem; text-align:center; text-decoration:none;" download>
+                ⬇️ Download PDF
+              </a>
+            </div>
+            
+            <div style="margin-top:0.65rem; text-align:center;">
+              <button class="chip" style="cursor:pointer; font-size:0.75rem; width:100%; justify-content:center;" onclick="window.toggleBookmark('textbook', '${b.id}', '${safeTitle}')">
+                ⭐ Pin to My Bookmarks
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+  } catch (err) {
+    console.error("Error fetching textbooks:", err);
+    grid.innerHTML = `<p style="color:var(--danger); grid-column:1/-1;">Failed to load textbooks. Please verify server connection.</p>`;
+  }
+};
+
+window.openTextbookReader = function(bookId, title, readUrl, downloadUrl) {
+  const modal = document.getElementById("textbook-modal");
+  const titleEl = document.getElementById("textbook-modal-title");
+  const subEl = document.getElementById("textbook-modal-subtitle");
+  const iframe = document.getElementById("textbook-modal-iframe");
+  const dlBtn = document.getElementById("textbook-modal-download-btn");
+  const tabBtn = document.getElementById("textbook-modal-tab-btn");
+
+  if (!modal || !iframe) return;
+
+  if (titleEl) titleEl.textContent = title;
+  if (subEl) subEl.textContent = "Official Karnataka DSERT / KTBS Prescribed Textbook";
+  if (dlBtn) dlBtn.href = downloadUrl;
+  if (tabBtn) tabBtn.href = readUrl;
+
+  iframe.src = readUrl;
+  modal.style.display = "flex";
+  document.body.style.overflow = "hidden";
+};
+
+window.closeTextbookReader = function() {
+  const modal = document.getElementById("textbook-modal");
+  const iframe = document.getElementById("textbook-modal-iframe");
+  if (modal) modal.style.display = "none";
+  if (iframe) iframe.src = "about:blank";
+  document.body.style.overflow = "auto";
+};
+
+// Official Textbook Reference on Topic Learning Page
+async function loadRelatedTextbookReference(slug) {
+  const container = document.getElementById("topic-textbook-ref-box");
+  if (!container) return;
+
+  try {
+    const res = await fetch(`/api/textbooks/related/${slug}`);
+    const data = await res.json();
+    if (data.success && data.related_books && data.related_books.length > 0) {
+      const b = data.related_books[0];
+      const safeTitle = b.title.replace(/'/g, "\\'");
+      container.style.display = "block";
+      container.innerHTML = `
+        <div style="background:linear-gradient(135deg, rgba(99,102,241,0.08), rgba(15,23,42,0.7)); border:1px solid rgba(99,102,241,0.3); border-radius:var(--radius-md); padding:1rem 1.25rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
+          <div style="display:flex; align-items:center; gap:0.85rem;">
+            <div style="font-size:2rem; background:rgba(99,102,241,0.15); width:48px; height:48px; border-radius:10px; display:flex; align-items:center; justify-content:center;">📖</div>
+            <div>
+              <div style="font-size:0.75rem; text-transform:uppercase; color:#a5b4fc; font-weight:700; letter-spacing:0.05em;">Prescribed Karnataka State Board Textbook</div>
+              <div style="font-size:1.02rem; font-weight:700; color:var(--text-primary);">${b.title}</div>
+              <div style="font-size:0.8rem; color:var(--text-muted);">${b.medium.replace("-", " ")} • ${b.file_size_mb} MB • 100% Offline Disk Hosted</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:0.6rem; align-items:center;">
+            <button class="btn-primary" style="font-size:0.82rem; padding:0.45rem 0.9rem;" onclick="window.openTextbookReader(${b.id}, '${safeTitle}', '${b.read_url}', '${b.download_url}')">
+              📖 Open in Reader
+            </button>
+            <a href="${b.download_url}" class="btn-secondary" style="font-size:0.82rem; padding:0.45rem 0.9rem; text-decoration:none;" download>
+              ⬇️ Download PDF
+            </a>
+          </div>
+        </div>
+      `;
+    } else {
+      container.style.display = "none";
+    }
+  } catch (e) {
+    container.style.display = "none";
+  }
+}
+
+// Prescribed Textbooks Row on Student Dashboard
+async function loadDashboardTextbooks() {
+  const container = document.getElementById("dash-textbooks-row");
+  if (!container) return;
+
+  try {
+    const res = await fetch("/api/textbooks?class=10");
+    const data = await res.json();
+    if (!data.success || !data.textbooks) return;
+
+    // Show 4 representative core textbooks (Maths, Science, English, Kannada)
+    const featured = data.textbooks.slice(0, 4);
+    container.innerHTML = featured.map(b => {
+      const safeTitle = b.title.replace(/'/g, "\\'");
+      return `
+        <div class="textbook-card" style="padding:1.25rem;">
+          <div>
+            <div class="textbook-badges-row">
+              <span class="chip" style="font-size:0.72rem; border-color:var(--primary); color:#a5b4fc;">Class ${b.class_num}</span>
+              <span class="chip" style="font-size:0.72rem;">${b.subject}</span>
+            </div>
+            <div class="textbook-title" style="font-size:0.95rem; margin-bottom:0.6rem;">${b.title}</div>
+          </div>
+          <div>
+            <div class="textbook-meta" style="padding-top:0.6rem; margin-bottom:0.75rem;">
+              <span>💾 ${b.file_size_mb} MB</span>
+              <span style="color:#34d399;">✓ Offline</span>
+            </div>
+            <div class="textbook-actions">
+              <button class="btn-primary" style="font-size:0.8rem; padding:0.4rem 0.6rem;" 
+                      onclick="window.openTextbookReader(${b.id}, '${safeTitle}', '${b.read_url}', '${b.download_url}')">
+                📖 Read
+              </button>
+              <a href="${b.download_url}" class="btn-secondary" style="font-size:0.8rem; padding:0.4rem 0.6rem; text-align:center; text-decoration:none;" download>
+                ⬇️ PDF
+              </a>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+  } catch (e) {
+    console.error("Dashboard textbooks load error:", e);
+  }
+}
+
+// ==========================================
+// 14. EXAMINATION PREPARATION CENTRE (SECTION 14)
+// ==========================================
+window.examMaterialsData = null;
+
+window.loadExamPrep = async function() {
+  const countdownEl = document.getElementById("exam-countdown-container");
+  if (!countdownEl) return;
+
+  try {
+    const res = await fetch("/api/exam-materials");
+    const data = await res.json();
+    if (!data.success) return;
+
+    window.examMaterialsData = data;
+
+    // Render countdown cards
+    if (data.exam_countdowns) {
+      countdownEl.innerHTML = data.exam_countdowns.map(cd => {
+        const target = new Date(cd.target_date);
+        const today = new Date();
+        const diffDays = Math.max(0, Math.ceil((target - today) / (1000 * 60 * 60 * 24)));
+
+        return `
+          <div class="exam-countdown-card glass-panel">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+              <span class="chip" style="font-size:0.72rem; border-color:var(--accent); color:#fbbf24;">${cd.tag}</span>
+              <span style="font-size:0.8rem; color:var(--text-muted);">${cd.target_date}</span>
+            </div>
+            <h4 style="font-size:1.1rem; line-height:1.4; margin-bottom:0.75rem;">${cd.title}</h4>
+            <div style="display:flex; align-items:baseline; gap:0.5rem;">
+              <span style="font-size:2.2rem; font-weight:800; color:var(--primary); font-family:var(--font-heading);">${diffDays}</span>
+              <span style="color:var(--text-secondary); font-size:0.88rem;">Days Remaining Until Final Exam</span>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    // Default to Formulas Tab
+    window.switchExamPrepTab("formulas");
+  } catch (e) {
+    console.error("Exam materials load error:", e);
+  }
+};
+
+window.switchExamPrepTab = function(tabName) {
+  const contentArea = document.getElementById("exam-prep-content-area");
+  if (!contentArea || !window.examMaterialsData) return;
+
+  const btnFormulas = document.getElementById("tab-exam-formulas");
+  const btnMock = document.getElementById("tab-exam-mock");
+  const btnDefs = document.getElementById("tab-exam-definitions");
+
+  if (btnFormulas) btnFormulas.classList.toggle("active", tabName === "formulas");
+  if (btnMock) btnMock.classList.toggle("active", tabName === "mock");
+  if (btnDefs) btnDefs.classList.toggle("active", tabName === "definitions");
+
+  const mats = window.examMaterialsData.materials || [];
+
+  if (tabName === "formulas") {
+    const formulaMats = mats.filter(m => m.material_type === "formula_sheet");
+    contentArea.innerHTML = formulaMats.map(fm => {
+      const sec = fm.content.sections || [];
+      return `
+        <div class="formula-section-card glass-panel">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
+            <div>
+              <span class="chip" style="font-size:0.75rem; border-color:var(--primary); color:#a5b4fc;">${fm.grade_level} • ${fm.subject}</span>
+              <h3 style="font-size:1.35rem; margin-top:0.35rem;">${fm.title}</h3>
+              <p style="color:var(--text-secondary); font-size:0.9rem;">${fm.content.description || ""}</p>
+            </div>
+            <button class="chip" style="cursor:pointer;" onclick="window.toggleBookmark('formula', '${fm.id}', '${fm.title.replace(/'/g, "\\'")}')">
+              ⭐ Bookmark Formula Blueprint
+            </button>
+          </div>
+
+          <div>
+            ${sec.map(s => `
+              <div style="margin-top:1.5rem;">
+                <h4 style="color:#fbbf24; font-size:1.1rem; margin-bottom:0.75rem; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:0.4rem;">
+                  📌 ${s.topic}
+                </h4>
+                <div>
+                  ${s.rules.map(r => `
+                    <div class="formula-row">
+                      <div class="formula-math">${r.formula}</div>
+                      <div style="color:var(--text-primary); font-size:0.95rem; line-height:1.5;">${r.interpretation}</div>
+                    </div>
+                  `).join("")}
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+    }).join("");
+  } else if (tabName === "mock") {
+    const mockMats = mats.filter(m => m.material_type === "model_paper");
+    contentArea.innerHTML = mockMats.map(mp => {
+      const qList = mp.content.questions || [];
+      return `
+        <div class="glass-panel" style="padding:2rem; margin-bottom:2rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; flex-wrap:wrap; gap:0.75rem;">
+            <div>
+              <div style="display:flex; gap:0.5rem; align-items:center;">
+                <span class="chip" style="font-size:0.75rem; border-color:var(--accent); color:#fbbf24;">⏱️ ${mp.content.duration_minutes} Minutes</span>
+                <span class="chip" style="font-size:0.75rem;">Total: ${mp.content.total_marks} Marks</span>
+              </div>
+              <h3 style="font-size:1.4rem; margin-top:0.45rem;">${mp.title}</h3>
+              <p style="color:var(--text-muted); font-size:0.88rem;">${mp.content.instructions}</p>
+            </div>
+            <button class="btn-primary" onclick="alert('Mock paper test mode active! Complete questions below and verify with model solutions.')">
+              🚀 Start Timed Practice
+            </button>
+          </div>
+
+          <div style="margin-top:1.5rem;">
+            ${qList.map((q, idx) => `
+              <div class="mock-q-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                  <span style="font-weight:700; color:var(--primary);">Question ${idx + 1} (${q.marks} Mark${q.marks > 1 ? "s" : ""})</span>
+                  <span class="chip" style="font-size:0.72rem; text-transform:uppercase;">${q.type.replace("_", " ")}</span>
+                </div>
+                <p style="font-size:1.05rem; font-weight:600; line-height:1.6; margin-bottom:1rem;">${q.text}</p>
+
+                ${q.options ? `
+                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-bottom:1rem;">
+                    ${q.options.map(opt => `
+                      <button class="option-btn" onclick="this.style.borderColor='var(--primary)'; this.style.background='rgba(99,102,241,0.1)';">
+                        ${opt}
+                      </button>
+                    `).join("")}
+                  </div>
+                ` : ""}
+
+                <details style="background:rgba(255,255,255,0.02); border:1px dashed var(--border-color); border-radius:var(--radius-sm); padding:0.85rem 1.25rem; margin-top:0.75rem; cursor:pointer;">
+                  <summary style="font-size:0.88rem; font-weight:700; color:#34d399;">
+                    ✓ View Official Step-by-Step Model Answer & Marking Scheme
+                  </summary>
+                  <div style="margin-top:0.85rem; font-size:0.95rem; line-height:1.7; color:var(--text-primary); border-top:1px solid rgba(255,255,255,0.06); padding-top:0.75rem;">
+                    ${q.model_answer || q.explanation || "Correct answer: " + q.correct_option}
+                  </div>
+                </details>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+    }).join("");
+  } else if (tabName === "definitions") {
+    const defMat = mats.find(m => m.material_type === "high_yield_revision");
+    if (!defMat) {
+      contentArea.innerHTML = `<p>No definitions available.</p>`;
+      return;
+    }
+    const items = defMat.content.items || [];
+    contentArea.innerHTML = `
+      <div class="glass-panel" style="padding:2rem;">
+        <h3 style="font-size:1.4rem; margin-bottom:0.5rem;">${defMat.title}</h3>
+        <p style="color:var(--text-secondary); font-size:0.92rem; margin-bottom:1.5rem;">${defMat.content.description}</p>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:1.25rem;">
+          ${items.map(it => `
+            <div style="padding:1.25rem; border-radius:var(--radius-md); background:rgba(255,255,255,0.02); border:1px solid var(--border-color);">
+              <div style="font-size:1.15rem; font-weight:700; color:#a5b4fc; margin-bottom:0.45rem;">
+                📌 ${it.term}
+              </div>
+              <p style="font-size:0.95rem; line-height:1.6; color:var(--text-primary);">
+                ${it.definition}
+              </p>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+};
+
+// ==========================================
+// 15. BOOKMARKS & SAVED MATERIALS (SECTION 19)
+// ==========================================
+window.loadBookmarks = async function() {
+  const container = document.getElementById("bookmarks-container");
+  if (!container) return;
+
+  container.innerHTML = `<div class="chip">Loading saved bookmarks... ⏳</div>`;
+
+  try {
+    const userId = window.appState.currentUser ? window.appState.currentUser.id : 1;
+    const res = await fetch(`/api/bookmarks/${userId}`);
+    const data = await res.json();
+    if (!data.success) return;
+
+    if (data.bookmarks.length === 0) {
+      container.innerHTML = `
+        <div style="text-align:center; padding:3rem;">
+          <div style="font-size:3rem; margin-bottom:1rem;">⭐</div>
+          <h3>No saved bookmarks yet</h3>
+          <p style="color:var(--text-muted); font-size:0.95rem;">
+            Click the "⭐ Bookmark" button on any textbook, topic note, or formula sheet to save it here for fast retrieval.
+          </p>
+        </div>
+      `;
+      return;
+    }
+
+    const typeIcons = {
+      "topic": "📖",
+      "textbook": "📚",
+      "formula": "📐",
+      "flashcard": "🔄"
+    };
+
+    container.innerHTML = `
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:1.25rem;">
+        ${data.bookmarks.map(b => `
+          <div class="glass-panel" style="padding:1.25rem; display:flex; flex-direction:column; justify-content:space-between;">
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                <span class="chip" style="font-size:0.75rem; text-transform:uppercase;">
+                  ${typeIcons[b.item_type] || "📌"} ${b.item_type}
+                </span>
+                <span style="font-size:0.75rem; color:var(--text-muted);">${b.created_at ? b.created_at.split(" ")[0] : "Saved"}</span>
+              </div>
+              <h4 style="font-size:1.05rem; line-height:1.5; margin-bottom:1rem;">${b.title}</h4>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border-color); padding-top:0.75rem;">
+              <button class="btn-primary" style="font-size:0.8rem; padding:0.4rem 0.85rem;" onclick="window.navigateTo('${b.item_type === "textbook" ? "textbooks" : (b.item_type === "formula" ? "exam-prep" : "learn")}')">
+                Open Resource →
+              </button>
+              <button class="btn-secondary" style="font-size:0.8rem; padding:0.4rem 0.65rem;" onclick="window.toggleBookmark('${b.item_type}', '${b.item_id}', '${b.title.replace(/'/g, "\\'")}')">
+                🗑️ Remove
+              </button>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  } catch (e) {
+    container.innerHTML = `<p style="color:var(--danger);">Error loading bookmarks.</p>`;
+  }
+};
+
+window.toggleBookmark = async function(itemType, itemId, title) {
+  const userId = window.appState.currentUser ? window.appState.currentUser.id : 1;
+  try {
+    const res = await fetch("/api/bookmarks/toggle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: userId,
+        item_type: itemType,
+        item_id: String(itemId),
+        title: title
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      if (data.bookmarked) {
+        alert(`⭐ Added "${title}" to your saved Bookmarks!`);
+      } else {
+        alert(`Removed "${title}" from Bookmarks.`);
+      }
+      if (document.getElementById("view-bookmarks") && document.getElementById("view-bookmarks").classList.contains("active")) {
+        window.loadBookmarks();
+      }
+    }
+  } catch (e) {
+    console.error("Bookmark toggle error:", e);
+  }
+};
+

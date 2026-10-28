@@ -5,12 +5,14 @@ SMVITM Bantakal | Department of AI & Data Science | Team 11
 """
 
 import os
-from flask import Flask, request, jsonify, render_template, send_from_directory
+from flask import Flask, request, jsonify, render_template, send_from_directory, send_file
 from database import get_db, init_db
 from ai_engine import ai_engine
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SECRET_KEY"] = "learnsphere-smvitm-idt-team11-2026"
+
+TEXTBOOKS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "text books")
 
 # Ensure DB is created on startup
 init_db()
@@ -339,6 +341,10 @@ def get_admin_stats():
     total_attempts = cursor.fetchone()[0]
     cursor.execute("SELECT COUNT(*) FROM confidence_records")
     total_confidence = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM textbooks")
+    total_textbooks = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM exam_materials")
+    total_exam_materials = cursor.fetchone()[0]
     conn.close()
     return jsonify({
         "success": True,
@@ -347,9 +353,243 @@ def get_admin_stats():
         "total_topics": total_topics,
         "total_attempts": total_attempts,
         "total_confidence_evaluations": total_confidence,
+        "total_textbooks": total_textbooks,
+        "total_exam_materials": total_exam_materials,
         "database_health": "Healthy (SQLite Persistent WAL)",
         "offline_ready": True
     })
+
+# ==========================================
+# OFFICIAL KARNATAKA TEXTBOOKS LIBRARY (SECTION 5 & 21)
+# ==========================================
+
+@app.route("/api/textbooks", methods=["GET"])
+def get_textbooks():
+    """Returns official textbooks with optional class, subject, medium, and search filters."""
+    class_num = request.args.get("class")
+    subject = request.args.get("subject")
+    medium = request.args.get("medium")
+    search = request.args.get("search")
+
+    query = "SELECT * FROM textbooks WHERE 1=1"
+    params = []
+
+    if class_num:
+        query += " AND class_num = ?"
+        params.append(int(class_num))
+    if subject and subject != "All":
+        query += " AND subject = ?"
+        params.append(subject)
+    if medium and medium != "All":
+        query += " AND medium = ?"
+        params.append(medium)
+    if search:
+        query += " AND (title LIKE ? OR subject LIKE ?)"
+        params.append(f"%{search}%")
+        params.append(f"%{search}%")
+
+    query += " ORDER BY class_num DESC, subject ASC, title ASC"
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(query, params)
+    books = [dict(row) for row in cursor.fetchall()]
+
+    # Collect metadata for filters
+    cursor.execute("SELECT DISTINCT class_num FROM textbooks ORDER BY class_num ASC")
+    classes = [r[0] for r in cursor.fetchall()]
+
+    cursor.execute("SELECT DISTINCT subject FROM textbooks ORDER BY subject ASC")
+    subjects = [r[0] for r in cursor.fetchall()]
+
+    cursor.execute("SELECT DISTINCT medium FROM textbooks ORDER BY medium ASC")
+    mediums = [r[0] for r in cursor.fetchall()]
+
+    cursor.execute("SELECT COUNT(*), SUM(file_size_mb) FROM textbooks WHERE file_exists = 1")
+    stats_row = cursor.fetchone()
+    total_count = stats_row[0] or 0
+    total_size_mb = round(stats_row[1] or 0.0, 1)
+
+    conn.close()
+
+    # Enrich with download and read URLs
+    for b in books:
+        b["read_url"] = f"/api/textbooks/read/{b['id']}"
+        b["download_url"] = f"/api/textbooks/download/{b['id']}"
+
+    return jsonify({
+        "success": True,
+        "total": len(books),
+        "total_available_books": total_count,
+        "total_size_mb": total_size_mb,
+        "classes": classes,
+        "subjects": subjects,
+        "mediums": mediums,
+        "textbooks": books
+    })
+
+@app.route("/api/textbooks/<int:book_id>", methods=["GET"])
+def get_textbook_detail(book_id):
+    """Returns single textbook metadata."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM textbooks WHERE id = ?", (book_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"success": False, "error": "Textbook not found"}), 404
+
+    book = dict(row)
+    book["read_url"] = f"/api/textbooks/read/{book['id']}"
+    book["download_url"] = f"/api/textbooks/download/{book['id']}"
+    return jsonify({"success": True, "textbook": book})
+
+@app.route("/api/textbooks/read/<int:book_id>", methods=["GET"])
+def read_textbook(book_id):
+    """Serves the PDF for inline browser viewing in iframe or tab."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT filename, title FROM textbooks WHERE id = ?", (book_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return "Textbook record not found in database", 404
+
+    filename = row["filename"]
+    full_path = os.path.join(TEXTBOOKS_DIR, filename)
+    if not os.path.exists(full_path):
+        return f"Textbook file not found on server disk: {filename}", 404
+
+    return send_file(full_path, mimetype="application/pdf", as_attachment=False, download_name=os.path.basename(filename))
+
+@app.route("/api/textbooks/download/<int:book_id>", methods=["GET"])
+def download_textbook(book_id):
+    """Serves the PDF as an attachment download for offline learning."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT filename, title FROM textbooks WHERE id = ?", (book_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return "Textbook record not found in database", 404
+
+    filename = row["filename"]
+    full_path = os.path.join(TEXTBOOKS_DIR, filename)
+    if not os.path.exists(full_path):
+        return f"Textbook file not found on server disk: {filename}", 404
+
+    clean_title = row["title"].replace(" ", "_")[:60] + ".pdf"
+    return send_file(full_path, mimetype="application/pdf", as_attachment=True, download_name=clean_title)
+
+@app.route("/api/textbooks/related/<topic_slug>", methods=["GET"])
+def get_related_textbooks(topic_slug):
+    """Returns official textbook references for a topic."""
+    topic_mapping = {
+        "linear-equations": {"class": 10, "subject": "Maths"},
+        "newtons-laws-motion": {"class": 9, "subject": "Science"},
+        "photosynthesis": {"class": 10, "subject": "Science"},
+        "c-programming": {"class": 10, "subject": "English"},
+        "stack-data-structures": {"class": 10, "subject": "Maths"}
+    }
+    spec = topic_mapping.get(topic_slug, {"class": 10, "subject": "Maths"})
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+    SELECT * FROM textbooks 
+    WHERE class_num = ? AND subject = ?
+    ORDER BY medium ASC, title ASC
+    """, (spec["class"], spec["subject"]))
+    books = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+
+    for b in books:
+        b["read_url"] = f"/api/textbooks/read/{b['id']}"
+        b["download_url"] = f"/api/textbooks/download/{b['id']}"
+
+    return jsonify({"success": True, "topic_slug": topic_slug, "related_books": books})
+
+# ==========================================
+# EXAMINATION PREPARATION CENTRE (SECTION 14)
+# ==========================================
+
+@app.route("/api/exam-materials", methods=["GET"])
+def get_exam_materials():
+    """Returns examination blueprints, formula sheets, mock papers, and definitions."""
+    material_type = request.args.get("type")
+    conn = get_db()
+    cursor = conn.cursor()
+    if material_type and material_type != "All":
+        cursor.execute("SELECT * FROM exam_materials WHERE material_type = ?", (material_type,))
+    else:
+        cursor.execute("SELECT * FROM exam_materials ORDER BY id ASC")
+    rows = cursor.fetchall()
+    conn.close()
+
+    materials = []
+    import json
+    for r in rows:
+        m = dict(r)
+        try:
+            m["content"] = json.loads(m["content_json"])
+        except Exception:
+            m["content"] = {}
+        del m["content_json"]
+        materials.append(m)
+
+    return jsonify({
+        "success": True,
+        "materials": materials,
+        "exam_countdowns": [
+            {"title": "Karnataka SSLC Board Examination 2026", "target_date": "2026-03-25", "tag": "Class 10 State Board"},
+            {"title": "Class 9 Summative Assessment (SA-2)", "target_date": "2026-03-12", "tag": "Class 9 Annual"},
+            {"title": "Class 8 Summative Assessment (SA-2)", "target_date": "2026-03-10", "tag": "Class 8 Annual"}
+        ]
+    })
+
+# ==========================================
+# BOOKMARKS & SAVED NOTES (SECTION 19)
+# ==========================================
+
+@app.route("/api/bookmarks/<int:user_id>", methods=["GET"])
+def get_bookmarks(user_id):
+    """Returns saved notes, textbooks, and formulas for the user."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM bookmarks WHERE user_id = ? ORDER BY id DESC", (user_id,))
+    bookmarks = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return jsonify({"success": True, "bookmarks": bookmarks})
+
+@app.route("/api/bookmarks/toggle", methods=["POST"])
+def toggle_bookmark():
+    """Adds or removes a bookmark."""
+    data = request.get_json() or {}
+    user_id = data.get("user_id", 1)
+    item_type = data.get("item_type", "topic")
+    item_id = str(data.get("item_id", ""))
+    title = data.get("title", "Saved Item")
+
+    if not item_id:
+        return jsonify({"success": False, "error": "item_id is required"}), 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM bookmarks WHERE user_id = ? AND item_type = ? AND item_id = ?", (user_id, item_type, item_id))
+    row = cursor.fetchone()
+
+    if row:
+        cursor.execute("DELETE FROM bookmarks WHERE id = ?", (row["id"],))
+        bookmarked = False
+    else:
+        cursor.execute("INSERT INTO bookmarks (user_id, item_type, item_id, title) VALUES (?, ?, ?, ?)",
+                       (user_id, item_type, item_id, title))
+        bookmarked = True
+
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "bookmarked": bookmarked})
+
 
 @app.route("/api/progress/<int:user_id>", methods=["GET"])
 def get_user_progress(user_id):
