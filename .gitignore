@@ -1,6 +1,5 @@
 KSEAB_Textbooks/
 venv/
-*.db  
 # create a db file with name learnsphere.db
 __pycache__/
 text books/
