@@ -9,7 +9,8 @@ import sqlite3
 import os
 import json
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "learnsphere.db")
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "learnsphere.db")
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 def seed():
     conn = sqlite3.connect(DB_PATH)
@@ -31,10 +32,7 @@ def seed():
         ('Social Science', 'SOC', 'School', '🌍', '#f59e0b', 'History (Advent of Europeans), Civics (Indian Constitution), and Geography.'),
         ('English', 'ENG', 'School', '📖', '#8b5cf6', 'English Language, Active/Passive Voice, Reported Speech, and Grammar.'),
         ('Kannada', 'KAN', 'School', '🌟', '#f97316', 'ಕನ್ನಡ ಸಾಹಿತ್ಯ, ವ್ಯಾಕರಣ (ಸಂಧಿಗಳು, ಸಮಾಸಗಳು) ಮತ್ತು ಭಾಷಾಭ್ಯಾಸ.'),
-        ('Hindi', 'HIN', 'School', '🇮🇳', '#ec4899', 'हिन्दी भाषा, व्याकरण (कारक, समास, मुहावरे) और वाक्य रचना।'),
-        ('Programming in C', 'CS-C', 'College', '💻', '#06b6d4', 'C Language, Variables, Pointers, and Dynamic Memory Allocation.'),
-        ('Data Structures', 'CS-DSA', 'College', '🌲', '#a855f7', 'Stacks, Queues, Linked Lists, Trees, and Sorting Algorithms.'),
-        ('Artificial Intelligence', 'AIDS-AI', 'College', '🤖', '#6366f1', 'Search Algorithms, Knowledge Representation, and Machine Learning.')
+        ('Hindi', 'HIN', 'School', '🇮🇳', '#ec4899', 'हिन्दी भाषा, व्याकरण (कारक, समास, मुहावरे) और वाक्य रचना।')
     ]
 
     for name, code, cat, icon, color, desc in subjects_seed:
@@ -561,70 +559,160 @@ def seed():
             "prerequisite_text": "Indian freedom struggle and democratic values.",
             "textbook_ref": "Karnataka Class 10 Social Science Part 1 • Political Science Chapter 1 (Pages 65-82)",
             "textbook_id": 65
-        },
-
-        # College - C Pointers
-        {
-            "subject_id": sub_map['CS-C'],
-            "name": "Pointers & Dynamic Memory in C",
-            "slug": "c-pointers-memory",
-            "grade_level": "1st/2nd Sem B.Tech (SMVITM Bantakal)",
-            "difficulty": "Challenge",
-            "summary": "Memory addresses, pointer arithmetic, dereferencing, call-by-reference, and dynamic allocation via malloc and free.",
-            "simple_explanation": "A pointer is a variable that stores the memory address of another variable in RAM! Instead of duplicating a heavy data structure, you pass the GPS address of where it lives.",
-            "pointwise_notes": """• Pointer Declaration: int *ptr;
-• Address-of Operator (&): Retrieves the memory address (&x).
-• Dereference Operator (*): Accesses the value stored at the referenced address (*ptr).
-• Dynamic Memory Allocation in Heap:
-  - malloc(n * sizeof(int)): Allocates uninitialized bytes.
-  - calloc(n, sizeof(int)): Allocates and zeros memory.
-  - free(ptr): Deallocates heap memory to prevent memory leaks.""",
-            "detailed_explanation": """In C, memory is segmented into Code, Data, Stack, and Heap. Pointers enable direct byte-level manipulation of hardware addresses. Passing pointers to functions allows call-by-reference mutation and prevents stack frame bloat for large structures.""",
-            "exam_ready_notes": """ENGINEERING EXAM CODING TRAPS:
-1. Swapping two numbers using pointers (call by reference).
-2. Dangling pointer: Using a pointer after calling free(ptr).
-3. Memory leak: Forgetting free(ptr) in long-running loops.""",
-            "real_life_example": "A website bookmark link: The bookmark does not duplicate the website contents; it points directly to the server URL address.",
-            "kannada_explanation": "ಸಿ ಪ್ರೋಗ್ರಾಮಿಂಗ್‌ನಲ್ಲಿ ಪಾಯಿಂಟರ್‌ಗಳು: ಇನ್ನೊಂದು ವೇರಿಯೇಬಲ್‌ನ ಮೆಮೊರಿ ವಿಳಾಸವನ್ನು ಸಂಗ್ರಹಿಸುವ ವಿಶೇಷ ವೇರಿಯೇಬಲ್.",
-            "hindi_explanation": "सी में पॉइंटर्स: किसी अन्य वेरिएबल का मेमोरी एड्रेस स्टोर करने वाला विशेष वेरिएबल।",
-            "formula_box": "int x = 10; int *p = &x;\n*p = 20; // x becomes 20\nptr = (int*)malloc(n * sizeof(int));\nfree(ptr);",
-            "visual_type": "c_pointer",
-            "prerequisite_text": "C variables, data types, functions, and array indexing.",
-            "textbook_ref": "VTU / SMVITM 1st Year Engineering • Programming in C (Module 4: Pointers)",
-            "textbook_id": 55
-        },
-        # College - Data Structures Stack and Queue
-        {
-            "subject_id": sub_map['CS-DSA'],
-            "name": "Stacks, Queues & Linear Data Structures",
-            "slug": "data-structures-stack-queue",
-            "grade_level": "3rd Sem B.Tech (SMVITM Bantakal)",
-            "difficulty": "Challenge",
-            "summary": "LIFO stack operations, FIFO queue operations, overflow/underflow checks, and infix-to-postfix conversions.",
-            "simple_explanation": "A Stack is like a stack of cafeteria plates: the last plate placed on top is the first plate taken (LIFO). A Queue is like waiting in a movie ticket line: the first person to arrive is the first person served (FIFO)!",
-            "pointwise_notes": """• Stack Operations (LIFO):
-  - push(val): Adds item to top (Check Stack Overflow: top == MAX - 1)
-  - pop(): Removes and returns item from top (Check Stack Underflow: top == -1)
-  - peek(): Inspects top without removal
-• Queue Operations (FIFO):
-  - enqueue(val): Inserts at rear
-  - dequeue(): Removes from front
-• Applications: Undo/Redo in editors, browser back history, printer spoolers, and infix-to-postfix expressions.""",
-            "detailed_explanation": """Stacks and Queues are fundamental linear abstract data types (ADTs) with constrained insertion and deletion endpoints. Stacks provide the runtime mechanism for nested function call frames, recursion trees, and syntax validation in compiler parsers.""",
-            "exam_ready_notes": """DSA EXAM ALGORITHMS:
-1. Push and Pop array implementation with boundary checks.
-2. Infix to Postfix conversion using operator precedence stack.
-3. Circular Queue to solve standard array queue memory waste.""",
-            "real_life_example": "The 'Undo' (Ctrl+Z) feature in Google Docs: Every edit is pushed onto an undo stack. When you hit undo, the most recent action is popped off.",
-            "kannada_explanation": "ಡೇಟಾ ಸ್ಟ್ರಕ್ಚರ್ಸ್: ಸ್ಟಾಕ್ (LIFO - Last In First Out) ಮತ್ತು ಕ್ಯೂ (FIFO - First In First Out) ರೇಖೀಯ ದತ್ತಾಂಶ ರಚನೆಗಳು.",
-            "hindi_explanation": "डेटा संरचनाएँ: स्टैक (LIFO सिद्धांत) तथा क्यू (FIFO सिद्धांत)।",
-            "formula_box": "Stack: LIFO (top = top + 1) | Queue: FIFO (front, rear)\nInfix to Postfix: Shunting-Yard Algorithm",
-            "visual_type": "none",
-            "prerequisite_text": "Arrays, struct in C, and pointer manipulations.",
-            "textbook_ref": "VTU / SMVITM 3rd Sem Computer Science • Data Structures (Module 2: Stacks & Queues)",
-            "textbook_id": 64
         }
     ]
+
+    additional_topics = [
+        {
+            "grade": 8, "subject": "MATH", "name": "Rational Numbers",
+            "slug": "rational-numbers-class-8",
+            "summary": "Compare and perform operations with positive and negative rational numbers.",
+            "explanation": "A rational number can be written as p/q, where p and q are integers and q is not zero. To add or subtract fractions, use a common denominator; for multiplication, multiply numerators and denominators.",
+            "example": "A water tank is 3/4 full and 1/4 of its capacity is used. The remaining amount is 1/2 of the tank.",
+            "question": "Which of these is a rational number?",
+            "options": ("√2", "3/4", "π", "√5"), "answer": "B",
+            "answer_note": "3/4 is a ratio of two integers, so it is rational."
+        },
+        {
+            "grade": 8, "subject": "SCI", "name": "Crop Production and Management",
+            "slug": "crop-production-class-8",
+            "summary": "Learn the basic agricultural practices used to grow and protect crops.",
+            "explanation": "Crop production includes preparing the soil, sowing healthy seeds, adding nutrients, watering, removing weeds, harvesting, and storing the produce safely.",
+            "example": "A farmer loosens the soil before sowing so that roots can grow and receive air and water.",
+            "question": "Which step loosens and turns the soil before seeds are sown?",
+            "options": ("Harvesting", "Storage", "Ploughing", "Irrigation"), "answer": "C",
+            "answer_note": "Ploughing loosens and turns the soil before sowing."
+        },
+        {
+            "grade": 8, "subject": "SOC", "name": "The Constitution and Equality",
+            "slug": "constitution-equality-class-8",
+            "summary": "Understand how constitutional principles protect equality and fairness.",
+            "explanation": "A constitution sets out the principles and rules by which a country is governed. Equality before the law means that people should receive equal protection and should not be discriminated against.",
+            "example": "A school should apply the same admission rules fairly to every eligible student.",
+            "question": "What does equality before the law mean?",
+            "options": ("Only leaders follow laws", "Everyone receives equal protection of the law", "Rules apply only in cities", "Courts make different laws for each person"), "answer": "B",
+            "answer_note": "Equality before the law gives everyone equal protection under the law."
+        },
+        {
+            "grade": 8, "subject": "ENG", "name": "Simple Present Tense",
+            "slug": "simple-present-tense-class-8",
+            "summary": "Use the simple present tense for routines, facts, and repeated actions.",
+            "explanation": "The simple present describes habits, routines, and facts. With he, she, or it, the verb usually takes an s or es ending; with other subjects, use the base verb.",
+            "example": "We read every evening. She reads every evening.",
+            "question": "Choose the correct verb: She ____ to school every day.",
+            "options": ("walk", "walks", "walking", "walked"), "answer": "B",
+            "answer_note": "With the subject 'she', the simple-present verb takes an s: 'walks'."
+        },
+        {
+            "grade": 8, "subject": "HIN", "name": "Hindi Nouns (Sangya)",
+            "slug": "hindi-sangya-class-8",
+            "summary": "Identify words that name people, places, objects, and ideas in Hindi sentences.",
+            "explanation": "संज्ञा किसी व्यक्ति, स्थान, वस्तु या भाव के नाम को कहते हैं। वाक्य में संज्ञा पहचानने के लिए पूछें कि किसका नाम बताया जा रहा है।",
+            "example": "वाक्य 'सीमा पुस्तक पढ़ती है' में 'सीमा' और 'पुस्तक' संज्ञा हैं।",
+            "question": "वाक्य 'सीमा पुस्तक पढ़ती है' में व्यक्ति का नाम कौन-सा है?",
+            "options": ("पढ़ती", "है", "सीमा", "वाक्य"), "answer": "C",
+            "answer_note": "'सीमा' एक व्यक्ति का नाम है, इसलिए यह संज्ञा है।"
+        },
+        {
+            "grade": 8, "subject": "KAN", "name": "Kannada Nouns (ನಾಮಪದ)",
+            "slug": "kannada-nouns-class-8",
+            "summary": "Recognize Kannada words that name a person, place, animal, or object.",
+            "explanation": "ನಾಮಪದವು ವ್ಯಕ್ತಿ, ಸ್ಥಳ, ಪ್ರಾಣಿ ಅಥವಾ ವಸ್ತುವಿನ ಹೆಸರನ್ನು ಸೂಚಿಸುತ್ತದೆ. ವಾಕ್ಯದಲ್ಲಿ ಯಾರ ಅಥವಾ ಯಾವುದರ ಹೆಸರು ಬಂದಿದೆ ಎಂದು ಗಮನಿಸಿ.",
+            "example": "'ರಮೇಶ್ ಶಾಲೆಗೆ ಹೋದನು' ಎಂಬ ವಾಕ್ಯದಲ್ಲಿ 'ರಮೇಶ್' ವ್ಯಕ್ತಿಯ ಹೆಸರು.",
+            "question": "Which word is a person's name in 'Ramesh goes to school'?",
+            "options": ("goes", "school", "Ramesh", "to"), "answer": "C",
+            "answer_note": "Ramesh names a person, so it is a noun."
+        },
+        {
+            "grade": 9, "subject": "MATH", "name": "Polynomials",
+            "slug": "polynomials-class-9",
+            "summary": "Recognize polynomials and identify their terms, coefficients, and degree.",
+            "explanation": "A polynomial in one variable is an expression made from terms whose variable exponents are non-negative whole numbers. The degree is the greatest exponent with a non-zero coefficient.",
+            "example": "In 4x² + 3x - 2, the terms are 4x², 3x, and -2, and the degree is 2.",
+            "question": "What is the degree of 4x² + 3x - 2?",
+            "options": ("0", "1", "2", "3"), "answer": "C",
+            "answer_note": "The greatest exponent of x is 2, so the polynomial has degree 2."
+        },
+        {
+            "grade": 9, "subject": "SCI", "name": "Matter in Our Surroundings",
+            "slug": "matter-surroundings-class-9",
+            "summary": "Compare the properties and particle arrangement of solids, liquids, and gases.",
+            "explanation": "Matter is made of particles. In solids, particles are closely packed; in liquids, they can move past one another; in gases, they move freely and spread to fill their container.",
+            "example": "Water keeps a fixed volume but takes the shape of its container, showing a property of liquids.",
+            "question": "Which state has a fixed volume but takes the shape of its container?",
+            "options": ("Solid", "Liquid", "Gas", "Vacuum"), "answer": "B",
+            "answer_note": "A liquid has a fixed volume and takes the shape of its container."
+        },
+        {
+            "grade": 9, "subject": "SOC", "name": "Democracy and Elections",
+            "slug": "democracy-elections-class-9",
+            "summary": "Explore how elections allow people to choose representatives in a democracy.",
+            "explanation": "In a democracy, citizens choose representatives through regular elections. Fair elections give eligible voters a meaningful choice and help hold elected leaders accountable.",
+            "example": "Students choosing class representatives through a fair vote practise a basic democratic process.",
+            "question": "How do citizens usually choose representatives in a democracy?",
+            "options": ("By regular elections", "By inheritance", "By lottery only", "By appointment from another country"), "answer": "A",
+            "answer_note": "Citizens choose representatives through regular elections."
+        },
+        {
+            "grade": 9, "subject": "ENG", "name": "Subject-Verb Agreement",
+            "slug": "subject-verb-agreement-class-9",
+            "summary": "Match a verb correctly to its singular or plural subject.",
+            "explanation": "In the simple present tense, a singular third-person subject generally takes a verb ending in s or es. Plural subjects generally take the base form of the verb.",
+            "example": "The student writes neatly. The students write neatly.",
+            "question": "Choose the correct verb: The students ____ their lessons daily.",
+            "options": ("studies", "study", "studying", "studied"), "answer": "B",
+            "answer_note": "The plural subject 'students' takes the base verb 'study'."
+        },
+        {
+            "grade": 9, "subject": "HIN", "name": "Hindi Tenses (Kaal)",
+            "slug": "hindi-kaal-class-9",
+            "summary": "Identify whether a Hindi sentence describes the present, past, or future.",
+            "explanation": "काल क्रिया के उस रूप से समय का पता चलता है जिसमें काम हो रहा है, हो चुका है या आगे होगा। वाक्य की क्रिया और समय बताने वाले शब्दों पर ध्यान दें।",
+            "example": "'मैं कल विद्यालय जाऊँगा' भविष्य में होने वाले काम को बताता है।",
+            "question": "वाक्य 'मैं कल विद्यालय जाऊँगा' किस काल में है?",
+            "options": ("वर्तमान काल", "भूतकाल", "भविष्यत् काल", "इनमें से कोई नहीं"), "answer": "C",
+            "answer_note": "'जाऊँगा' भविष्य में होने वाले काम को बताता है।"
+        },
+        {
+            "grade": 9, "subject": "KAN", "name": "Kannada Sandhi",
+            "slug": "kannada-sandhi-class-9",
+            "summary": "Understand how sounds or letters change when Kannada words join.",
+            "explanation": "ಸಂಧಿ ಎಂದರೆ ಎರಡು ಪದಗಳು ಸೇರಿದಾಗ ಉಚ್ಚಾರಣೆ ಅಥವಾ ಅಕ್ಷರಗಳಲ್ಲಿ ಆಗುವ ಬದಲಾವಣೆ. ಸಂಧಿಯಾದ ಪದವನ್ನು ಅದರ ಮೂಲ ಪದಗಳಾಗಿ ಬಿಡಿಸಿ ಅಭ್ಯಾಸ ಮಾಡಬಹುದು.",
+            "example": "ಮಳೆ + ಕಾಲ ಎಂಬ ಪದಗಳು ಸೇರಿ 'ಮಳೆಗಾಲ' ಆಗುತ್ತವೆ.",
+            "question": "Which term describes a sound or letter change when two Kannada words join?",
+            "options": ("Samasa", "Sandhi", "Vibhakti", "Kriya"), "answer": "B",
+            "answer_note": "Sandhi describes the sound or letter change when words join."
+        },
+    ]
+
+    grade_topic_quizzes = []
+    for item in additional_topics:
+        grade = item["grade"]
+        subject_id = sub_map[item["subject"]]
+        topic_name = item["name"]
+        topics_list.append({
+            "subject_id": subject_id,
+            "name": topic_name,
+            "slug": item["slug"],
+            "grade_level": f"Class {grade} (Karnataka DSERT)",
+            "difficulty": "Standard",
+            "summary": item["summary"],
+            "simple_explanation": item["explanation"],
+            "pointwise_notes": f"• Key idea: {item['summary']}\n• Review the worked example, then try the practice question.",
+            "detailed_explanation": item["explanation"],
+            "exam_ready_notes": f"Class {grade} revision: define the key idea and support it with an example.",
+            "real_life_example": item["example"],
+            "kannada_explanation": item["explanation"] if item["subject"] == "KAN" else "ಮುಖ್ಯ ಕಲ್ಪನೆಯನ್ನು ಓದಿ, ಉದಾಹರಣೆಯೊಂದಿಗೆ ಅರ್ಥಮಾಡಿಕೊಂಡು ಅಭ್ಯಾಸ ಮಾಡಿ.",
+            "hindi_explanation": item["explanation"] if item["subject"] == "HIN" else "मुख्य विचार को पढ़ें, उदाहरण से समझें और अभ्यास करें।",
+            "formula_box": None,
+            "visual_type": "none",
+            "prerequisite_text": "Review the related school lesson and key vocabulary.",
+            "textbook_ref": f"Karnataka DSERT Class {grade} {topic_name}",
+            "textbook_id": None,
+        })
+        grade_topic_quizzes.append((
+            item["slug"], item["question"], *item["options"], item["answer"], item["answer_note"]
+        ))
 
     for t in topics_list:
         cursor.execute("SELECT id FROM topics WHERE slug = ?", (t["slug"],))
@@ -1341,92 +1429,16 @@ def seed():
             "2 October 1950",
             "C",
             "The Constitution was enacted on 26 January 1950, commemorated annually as Republic Day."
-        ),
-
-        # 17. College C Pointers
-        (
-            topic_map["c-pointers-memory"], "Challenge",
-            "If int x = 20; int *ptr = &x; what will printf(\"%d\", *ptr); output?",
-            "Memory address of x",
-            "20",
-            "Garbage value",
-            "Compiler syntax error",
-            "B",
-            "The dereference operator (*) accesses the value stored at the referenced memory address, which is 20."
-        ),
-        (
-            topic_map["c-pointers-memory"], "Challenge",
-            "Which standard C library function in <stdlib.h> is used to allocate raw heap memory bytes without initializing them to zero?",
-            "calloc()",
-            "malloc()",
-            "realloc()",
-            "free()",
-            "B",
-            "malloc(size) allocates uninitialized bytes in heap memory. calloc() clears them to zero."
-        ),
-        (
-            topic_map["c-pointers-memory"], "Challenge",
-            "What critical issue occurs if dynamically allocated memory using malloc() is never deallocated with free()?",
-            "Segmentation fault immediately",
-            "Memory leak",
-            "Compile-time syntax error",
-            "Stack overflow",
-            "B",
-            "Unreleased memory remains allocated in RAM, resulting in memory leaks that degrade performance."
-        ),
-        (
-            topic_map["c-pointers-memory"], "Challenge",
-            "In C pointer arithmetic, if int *p = 1000 (assuming 4-byte integers), what is the value of p + 1?",
-            "1001",
-            "1004",
-            "1002",
-            "1008",
-            "B",
-            "Pointer arithmetic scales by sizeof(type): 1000 + 1 × 4 = 1004."
-        ),
-
-        # 18. College Stacks and Queues
-        (
-            topic_map["data-structures-stack-queue"], "Challenge",
-            "Which data structure operates strictly on the Last-In, First-Out (LIFO) operational principle?",
-            "Queue",
-            "Stack",
-            "Linked List",
-            "Binary Tree",
-            "B",
-            "A Stack operates on LIFO (Last-In, First-Out): the most recently pushed item is the first one popped."
-        ),
-        (
-            topic_map["data-structures-stack-queue"], "Challenge",
-            "What condition occurs when attempting to push a new element into a stack that is already completely full?",
-            "Stack Underflow",
-            "Stack Overflow",
-            "Deadlock",
-            "Memory Thrashing",
-            "B",
-            "Attempting to add to a full stack triggers a Stack Overflow error."
-        ),
-        (
-            topic_map["data-structures-stack-queue"], "Challenge",
-            "Which linear data structure operates on the First-In, First-Out (FIFO) principle?",
-            "Stack",
-            "Queue",
-            "Binary Search Tree",
-            "Priority Heap",
-            "B",
-            "A Queue inserts at the rear and removes from the front (FIFO)."
-        ),
-        (
-            topic_map["data-structures-stack-queue"], "Challenge",
-            "Which data structure is primarily used by compilers to convert an Infix expression into a Postfix expression?",
-            "Queue",
-            "Stack",
-            "Graph",
-            "Hash Table",
-            "B",
-            "Stacks are used in the Shunting-Yard algorithm to evaluate operator precedence and convert infix to postfix."
         )
     ]
+
+    quiz_records.extend(
+        (
+            topic_map[slug], "Standard", question,
+            option_a, option_b, option_c, option_d, correct, explanation
+        )
+        for slug, question, option_a, option_b, option_c, option_d, correct, explanation in grade_topic_quizzes
+    )
 
     for q in quiz_records:
         cursor.execute("""
@@ -1495,8 +1507,7 @@ def seed():
         (topic_map["kannada-samasagalu"], "ದ್ವಿಗು ಸಮಾಸದ ಪೂರ್ವಪದ ಹೇಗಿರುತ್ತದೆ?", "ಪೂರ್ವಪದವು ಯಾವಾಗಲೂ ಸಂಖ್ಯಾವಾಚಕವಾಗಿರುತ್ತದೆ (ಮೂರು + ಲೋಕ = ಮೂರುಲೋಕ).", 1),
         (topic_map["active-passive-voice"], "What auxiliary verb is required for continuous passive sentences?", "The auxiliary 'being' (e.g. 'is being built', 'was being written').", 1),
         (topic_map["hindi-karak"], "अपादान कारक और करण कारक में क्या मुख्य अंतर है?", "करण साधन के लिए प्रयुक्त होता है (कलम से), जबकि अपादान अलग होने के लिए (पेड़ से)।", 1),
-        (topic_map["indian-constitution"], "Who chaired the Drafting Committee of the Indian Constitution?", "Dr. B. R. Ambedkar (Father of the Indian Constitution).", 1),
-        (topic_map["c-pointers-memory"], "What is the function of the '&' operator in C?", "Address-of operator: It returns the memory address of the variable.", 1)
+        (topic_map["indian-constitution"], "Who chaired the Drafting Committee of the Indian Constitution?", "Dr. B. R. Ambedkar (Father of the Indian Constitution).", 1)
     ]
     cursor.executemany("""
     INSERT INTO flashcards (topic_id, front_prompt, back_answer, interval_day)
@@ -1504,6 +1515,13 @@ def seed():
     """, fc_data)
 
     conn.commit()
+
+    try:
+        from database import cleanup_legacy_college_content
+        cleanup_legacy_college_content(conn)
+    except Exception as exc:
+        print("Legacy curriculum cleanup:", exc)
+
     conn.close()
     print("Curriculum and textbook seeding complete!")
 

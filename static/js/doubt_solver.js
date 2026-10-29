@@ -16,8 +16,15 @@ class DoubtSolver {
   init() {
     this.messagesContainer = document.getElementById("chat-messages");
     this.chatInput = document.getElementById("chat-input");
+    this.classSelect = document.getElementById("doubt-class-select");
+    this.subjectSelect = document.getElementById("doubt-subject-select");
     const sendBtn = document.getElementById("send-btn");
     const micBtn = document.getElementById("mic-btn");
+
+    if (this.classSelect && window.appState && window.appState.currentUser) {
+      const match = String(window.appState.currentUser.grade || "").match(/(8|9|10)/);
+      if (match) this.classSelect.value = match[1];
+    }
 
     if (sendBtn) {
       sendBtn.addEventListener("click", () => this.handleSend());
@@ -121,13 +128,16 @@ class DoubtSolver {
     // Call API
     try {
       const activeLang = window.appState ? window.appState.currentLanguage : "en";
+      const grade = this.classSelect ? `Class ${this.classSelect.value}` : null;
+      const subject = this.subjectSelect ? this.subjectSelect.value : "Auto";
       const response = await fetch("/api/doubt-solver", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           query: text,
-          subject: "General",
-          language: activeLang
+          subject: subject,
+          language: activeLang,
+          grade: grade
         })
       });
 
@@ -192,7 +202,7 @@ class DoubtSolver {
     const bubble = document.createElement("div");
     bubble.className = "chat-bubble ai";
     bubble.id = id;
-    bubble.innerHTML = `<span style="color:var(--text-muted); font-style:italic;">LearnSphere AI is thinking... ✍️</span>`;
+    bubble.innerHTML = `<span style="color:var(--text-muted); font-style:italic;">Searching your textbook PDFs for the exact chapter and page...</span>`;
     this.messagesContainer.appendChild(bubble);
     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
     return id;
@@ -205,7 +215,14 @@ class DoubtSolver {
 
   formatMarkdown(text) {
     let html = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
       .replace(/### (.*?)\n/g, '<h4 style="color:#a5b4fc; margin-bottom:0.4rem;">$1</h4>')
+      .replace(
+        /\[([^\]]+)\]\((\/[^)\s]+|https?:\/\/[^)\s]+)\)/g,
+        '<a href="$2" target="_blank" rel="noopener" style="color:#7dd3fc; text-decoration:underline;">$1</a>'
+      )
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
       .replace(/\n\n/g, '<br><br>')

@@ -1,26 +1,232 @@
 """
 LearnSphere AI - Personalized Learning Support System
 Main Flask Application Server
-SMVITM Bantakal | Department of AI & Data Science | Team 11
+Karnataka DSERT School Curriculum | Classes 8, 9 and 10
 """
 
+import functools
+import hashlib
+import hmac
 import os
-from flask import Flask, request, jsonify, render_template, send_from_directory, send_file
+import secrets
+from flask import Flask, request, jsonify, render_template, send_from_directory, send_file, session, redirect, url_for
 from database import get_db, init_db
 from ai_engine import ai_engine
+from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
-app.config["SECRET_KEY"] = "learnsphere-smvitm-idt-team11-2026"
+app.config["SECRET_KEY"] = os.environ.get("LEARNSPHERE_SECRET_KEY") or secrets.token_hex(32)
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 TEXTBOOKS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "text books")
 
 # Ensure DB is created on startup
 init_db()
 
+PUBLIC_ENDPOINTS = {"login", "register", "static"}
+
+
+def hash_password(password: str) -> str:
+    return generate_password_hash(password)
+
+
+def verify_password(stored_hash: str, password: str) -> bool:
+    if not stored_hash:
+        return False
+    if stored_hash.startswith(("pbkdf2:", "scrypt:")):
+        return check_password_hash(stored_hash, password)
+    return hmac.compare_digest(stored_hash, hashlib.sha256(password.encode("utf-8")).hexdigest())
+
+
+def current_user_id():
+    return session["user_id"]
+
+
+def get_session_user():
+    if not session.get("user_id"):
+        return None
+    return {
+        "id": session.get("user_id"),
+        "username": session.get("username"),
+        "full_name": session.get("full_name"),
+        "role": session.get("role", "student"),
+        "grade": session.get("grade", "Class 10"),
+        "school": session.get("school", ""),
+        "avatar": session.get("avatar", "👨‍🎓"),
+        "streak_days": session.get("streak_days", 0),
+    }
+
+
+def start_user_session(user_row):
+    session.clear()
+    session["user_id"] = user_row["id"]
+    session["username"] = user_row["username"]
+    session["full_name"] = user_row["full_name"]
+    session["role"] = user_row["role"]
+    session["grade"] = user_row["grade"]
+    session["school"] = user_row["school"]
+    session["avatar"] = user_row["avatar"]
+    session["streak_days"] = user_row["streak_days"]
+
+
+def login_required(view):
+    @functools.wraps(view)
+    def wrapped(*args, **kwargs):
+        if not session.get("user_id"):
+            if request.path.startswith("/api/"):
+                return jsonify({"success": False, "error": "Authentication required"}), 401
+            return redirect(url_for("login", next=request.path))
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def roles_required(*roles):
+    def decorate(view):
+        @functools.wraps(view)
+        def wrapped(*args, **kwargs):
+            if session.get("role") not in roles:
+                return jsonify({"success": False, "error": "Insufficient permissions"}), 403
+            return view(*args, **kwargs)
+        return wrapped
+    return decorate
+
+
+@app.before_request
+def protect_all_routes():
+    """Require a signed-in user for every route except login, register and static files."""
+    if request.endpoint in PUBLIC_ENDPOINTS or request.endpoint is None:
+        return None
+    if not session.get("user_id"):
+        if request.path.startswith("/api/"):
+            return jsonify({"success": False, "error": "Authentication required"}), 401
+        return redirect(url_for("login", next=request.path))
+    return None
+
+
+# ==========================================
+# AUTHENTICATION
+# ==========================================
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    """Sign in an existing student, teacher or administrator."""
+    if session.get("user_id"):
+        return redirect(url_for("index"))
+
+    next_url = request.args.get("next") or request.form.get("next") or "/"
+    if not next_url.startswith("/") or next_url.startswith("//"):
+        next_url = "/"
+
+    if request.method == "POST":
+        identifier = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM users WHERE username = ? OR email = ?",
+            (identifier, identifier),
+        )
+        user = cursor.fetchone()
+        conn.close()
+
+        if user and verify_password(user["password_hash"], password):
+            if not user["password_hash"].startswith(("pbkdf2:", "scrypt:")):
+                upgraded_hash = hash_password(password)
+                conn = get_db()
+                conn.execute(
+                    "UPDATE users SET password_hash = ? WHERE id = ?",
+                    (upgraded_hash, user["id"]),
+                )
+                conn.commit()
+                conn.close()
+                user = dict(user)
+                user["password_hash"] = upgraded_hash
+            start_user_session(user)
+            return redirect(next_url)
+
+        return render_template(
+            "login.html", mode="login", error="Invalid username or password.",
+            username=identifier, next_url=next_url,
+        )
+
+    return render_template("login.html", mode="login", next_url=next_url)
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    """Create a new student account."""
+    if session.get("user_id"):
+        return redirect(url_for("index"))
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        full_name = request.form.get("full_name", "").strip()
+        password = request.form.get("password", "")
+        confirm = request.form.get("confirm_password", "")
+        grade = request.form.get("grade", "Class 10")
+
+        if grade not in ("Class 8", "Class 9", "Class 10"):
+            grade = "Class 10"
+
+        error = None
+        if not username or not email or not full_name or not password:
+            error = "All fields are required."
+        elif len(password) < 6:
+            error = "Password must be at least 6 characters long."
+        elif password != confirm:
+            error = "Passwords do not match."
+
+        if not error:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id FROM users WHERE username = ? OR email = ?",
+                (username, email),
+            )
+            if cursor.fetchone():
+                error = "That username or email is already registered."
+            else:
+                cursor.execute("""
+                INSERT INTO users (
+                    username, email, password_hash, full_name, role, education_level,
+                    grade, school, preferred_language, avatar, learning_points, streak_days
+                ) VALUES (?, ?, ?, ?, 'student', 'School', ?, ?, 'en', '👨‍🎓', 0, 0)
+                """, (
+                    username, email, hash_password(password), full_name, grade,
+                    "Shri Vishnumoorthi Hayavadanaswami High School, Innanje",
+                ))
+                conn.commit()
+                cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
+                user = cursor.fetchone()
+                conn.close()
+                start_user_session(user)
+                return redirect("/")
+
+            conn.close()
+
+        return render_template(
+            "login.html", mode="register", error=error,
+            username=username, email=email, full_name=full_name, grade=grade,
+        )
+
+    return render_template("login.html", mode="register")
+
+
+@app.route("/logout")
+def logout():
+    """Clear the session and return to the login screen."""
+    session.clear()
+    return redirect(url_for("login"))
+
+
 @app.route("/")
+@login_required
 def index():
     """Serves the main single-page application prototype."""
-    return render_template("index.html")
+    return render_template("index.html", current_user=get_session_user())
 
 # ==========================================
 # REST API ENDPOINTS
@@ -28,10 +234,14 @@ def index():
 
 @app.route("/api/users", methods=["GET"])
 def get_users():
-    """Returns available users for demo persona switching."""
+    """Returns only the currently signed-in user's safe profile."""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, username, full_name, role, grade, school, preferred_language, avatar FROM users")
+    cursor.execute(
+        "SELECT id, username, full_name, role, grade, school, preferred_language, avatar "
+        "FROM users WHERE id = ?",
+        (current_user_id(),),
+    )
     users = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return jsonify({"success": True, "users": users})
@@ -39,45 +249,50 @@ def get_users():
 @app.route("/api/subjects", methods=["GET"])
 def get_subjects():
     """Returns all available subjects with topic count and color codes."""
+    grade = request.args.get("grade", "").strip()
+    grade_num = "".join(ch for ch in grade if ch.isdigit())
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("""
     SELECT s.id, s.name, s.code, s.icon, s.color, s.description,
-           COUNT(t.id) as topic_count
+           COUNT(CASE WHEN ? = '' OR t.grade_level LIKE ? THEN t.id END) as topic_count
     FROM subjects s
     LEFT JOIN topics t ON s.id = t.subject_id
+    WHERE s.category = 'School'
     GROUP BY s.id
     ORDER BY s.id
-    """)
+    """, (grade_num, f"%{grade_num}%"))
     subjects = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return jsonify({"success": True, "subjects": subjects})
 
 @app.route("/api/topics", methods=["GET"])
 def get_topics():
-    """Returns topics with optional subject filtering."""
+    """Returns school topics with optional subject and class filtering."""
     subject_id = request.args.get("subject_id")
+    grade = request.args.get("grade")
+
+    query = """
+    SELECT t.id, t.subject_id, t.name, t.slug, t.grade_level, t.difficulty,
+           t.summary, t.visual_type, t.textbook_ref, t.textbook_id,
+           s.name as subject_name, s.color as subject_color, s.icon as subject_icon
+    FROM topics t
+    JOIN subjects s ON t.subject_id = s.id
+    WHERE s.category = 'School'
+    """
+    params = []
+    if subject_id:
+        query += " AND t.subject_id = ?"
+        params.append(subject_id)
+    grade_num = "".join(ch for ch in str(grade or session.get("grade", "")) if ch.isdigit())
+    if grade_num in ("8", "9", "10"):
+        query += " AND t.grade_level LIKE ?"
+        params.append(f"%{grade_num}%")
+    query += " ORDER BY t.subject_id ASC, t.id ASC"
+
     conn = get_db()
     cursor = conn.cursor()
-    if subject_id:
-        cursor.execute("""
-        SELECT t.id, t.subject_id, t.name, t.slug, t.grade_level, t.difficulty,
-               t.summary, t.visual_type, t.textbook_ref, t.textbook_id,
-               s.name as subject_name, s.color as subject_color, s.icon as subject_icon
-        FROM topics t
-        JOIN subjects s ON t.subject_id = s.id
-        WHERE t.subject_id = ?
-        ORDER BY t.id
-        """, (subject_id,))
-    else:
-        cursor.execute("""
-        SELECT t.id, t.subject_id, t.name, t.slug, t.grade_level, t.difficulty,
-               t.summary, t.visual_type, t.textbook_ref, t.textbook_id,
-               s.name as subject_name, s.color as subject_color, s.icon as subject_icon
-        FROM topics t
-        JOIN subjects s ON t.subject_id = s.id
-        ORDER BY t.subject_id ASC, t.id ASC
-        """)
+    cursor.execute(query, params)
     topics = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return jsonify({"success": True, "topics": topics})
@@ -91,7 +306,7 @@ def get_topic_detail(slug):
     SELECT t.*, s.name as subject_name, s.color as subject_color, s.icon as subject_icon
     FROM topics t
     JOIN subjects s ON t.subject_id = s.id
-    WHERE t.slug = ?
+    WHERE t.slug = ? AND s.category = 'School'
     """, (slug,))
     row = cursor.fetchone()
     conn.close()
@@ -105,10 +320,12 @@ def get_quiz_by_topic(topic_id):
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("""
-    SELECT id, topic_id, difficulty_mode, question, option_a, option_b, option_c, option_d, correct_option, explanation
-    FROM quizzes
-    WHERE topic_id = ?
-    ORDER BY id
+    SELECT q.id, q.topic_id, q.difficulty_mode, q.question, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_option, q.explanation
+    FROM quizzes q
+    JOIN topics t ON q.topic_id = t.id
+    JOIN subjects s ON t.subject_id = s.id
+    WHERE q.topic_id = ? AND s.category = 'School'
+    ORDER BY q.id
     """, (topic_id,))
     quizzes = [dict(row) for row in cursor.fetchall()]
 
@@ -118,7 +335,7 @@ def get_quiz_by_topic(topic_id):
            s.id as subject_id, s.name as subject_name, s.color as subject_color, s.icon as subject_icon
     FROM topics t
     JOIN subjects s ON t.subject_id = s.id
-    WHERE t.id = ?
+    WHERE t.id = ? AND s.category = 'School'
     """, (topic_id,))
     topic_row = cursor.fetchone()
     topic_meta = dict(topic_row) if topic_row else {}
@@ -132,18 +349,33 @@ def submit_quiz_attempt():
     and auto-creates personalized revision tasks if score is low.
     """
     data = request.get_json() or {}
-    user_id = data.get("user_id", 1)
+    user_id = current_user_id()
     topic_id = data.get("topic_id")
     score = data.get("score", 0)
     total_questions = data.get("total_questions", 1)
 
-    if not topic_id:
-        return jsonify({"success": False, "error": "topic_id is required"}), 400
+    if (
+        not topic_id
+        or not isinstance(score, int)
+        or not isinstance(total_questions, int)
+        or total_questions <= 0
+        or score < 0
+        or score > total_questions
+    ):
+        return jsonify({"success": False, "error": "A valid topic_id, score, and total_questions are required"}), 400
 
     percentage = round((score / total_questions) * 100.0, 1) if total_questions > 0 else 0.0
 
     conn = get_db()
     cursor = conn.cursor()
+    cursor.execute("""
+    SELECT t.id FROM topics t
+    JOIN subjects s ON t.subject_id = s.id
+    WHERE t.id = ? AND s.category = 'School'
+    """, (topic_id,))
+    if not cursor.fetchone():
+        conn.close()
+        return jsonify({"success": False, "error": "School topic not found"}), 404
 
     # Record attempt
     cursor.execute("""
@@ -153,14 +385,14 @@ def submit_quiz_attempt():
 
     # Evaluate Learning Gap
     if percentage < 50.0:
-        gap_status = "gap_detected"
-        action = f"Critical Gap ({percentage}%): Re-read simple explanation, review formula card, and take 1-on-1 practice."
+        gap_status = "critical_gap"
+        action = f"Critical Gap ({percentage}%): Re-read the simple explanation, review the formula card, and try guided practice."
     elif percentage < 70.0:
-        gap_status = "in_progress"
-        action = f"Needs Revision ({percentage}%): Review mistakes and attempt another quiz challenge."
+        gap_status = "needs_revision"
+        action = f"Needs Revision ({percentage}%): Review mistakes and attempt another practice quiz."
     else:
         gap_status = "mastered"
-        action = f"Mastered ({percentage}%): Well done! Ready for advanced problem sets."
+        action = f"Mastered ({percentage}%): Well done! Try a new school-syllabus topic."
 
     cursor.execute("""
     INSERT INTO learning_gaps (user_id, topic_id, mastery_score, status, recommended_action, last_assessed)
@@ -202,17 +434,38 @@ def submit_quiz_attempt():
 
 @app.route("/api/doubt-solver", methods=["POST"])
 def solve_doubt():
-    """AI Doubt Solver API (Slide 25 Mockup 5)."""
+    """
+    AI Doubt Solver API (Slide 25 Mockup 5).
+
+    Answers are grounded in the official PDF textbooks: the response includes
+    the exact book, chapter, page number and a link to open that PDF page.
+    """
     data = request.get_json() or {}
     query = data.get("query", "").strip()
     subject = data.get("subject", "General")
     language = data.get("language", "en")
+    grade = data.get("grade")
+    textbook_id = data.get("textbook_id")
 
     if not query:
         return jsonify({"success": False, "error": "Query cannot be empty"}), 400
 
-    result = ai_engine.solve_doubt(query, subject, language)
+    try:
+        textbook_id = int(textbook_id) if textbook_id else None
+    except (TypeError, ValueError):
+        textbook_id = None
+
+    result = ai_engine.solve_doubt(
+        query, subject, language, grade=grade, textbook_id=textbook_id
+    )
     return jsonify(result)
+
+
+@app.route("/api/textbook-index/stats", methods=["GET"])
+def get_textbook_index_stats():
+    """Returns how many textbook PDFs/pages are searchable by the doubt solver."""
+    from textbook_search import textbook_search_engine
+    return jsonify({"success": True, "stats": textbook_search_engine.stats()})
 
 @app.route("/api/generate-notes", methods=["POST"])
 def generate_notes():
@@ -221,6 +474,16 @@ def generate_notes():
     topic_slug = data.get("topic_slug", "linear-equations")
     format_type = data.get("format_type", "short_notes")
     language = data.get("language", "en")
+
+    conn = get_db()
+    topic = conn.execute("""
+    SELECT t.id FROM topics t
+    JOIN subjects s ON t.subject_id = s.id
+    WHERE t.slug = ? AND s.category = 'School'
+    """, (topic_slug,)).fetchone()
+    conn.close()
+    if not topic:
+        return jsonify({"success": False, "error": "School topic not found"}), 404
 
     result = ai_engine.generate_notes(topic_slug, format_type, language)
     return jsonify(result)
@@ -233,7 +496,11 @@ def get_topic_prerequisites(topic_id):
     cursor.execute("""
     SELECT id, topic_id, prerequisite_name, mastery_status, recommendation
     FROM topic_prerequisites
-    WHERE topic_id = ?
+    WHERE topic_id = ? AND topic_id IN (
+        SELECT t.id FROM topics t
+        JOIN subjects s ON t.subject_id = s.id
+        WHERE s.category = 'School'
+    )
     """, (topic_id,))
     prereqs = [dict(row) for row in cursor.fetchall()]
     conn.close()
@@ -245,9 +512,12 @@ def get_quiz_hints(quiz_id):
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("""
-    SELECT level, title, hint_text
-    FROM quiz_hints
-    WHERE quiz_id = ?
+    SELECT h.level, h.title, h.hint_text
+    FROM quiz_hints h
+    JOIN quizzes q ON h.quiz_id = q.id
+    JOIN topics t ON q.topic_id = t.id
+    JOIN subjects s ON t.subject_id = s.id
+    WHERE h.quiz_id = ? AND s.category = 'School'
     ORDER BY level ASC
     """, (quiz_id,))
     hints = [dict(row) for row in cursor.fetchall()]
@@ -260,9 +530,12 @@ def get_mistake_detective(quiz_id, wrong_option):
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("""
-    SELECT misconception_name, why_it_happens, how_to_fix, follow_up_practice
-    FROM mistake_detective
-    WHERE quiz_id = ? AND wrong_option = ?
+    SELECT md.misconception_name, md.why_it_happens, md.how_to_fix, md.follow_up_practice
+    FROM mistake_detective md
+    JOIN quizzes q ON md.quiz_id = q.id
+    JOIN topics t ON q.topic_id = t.id
+    JOIN subjects s ON t.subject_id = s.id
+    WHERE md.quiz_id = ? AND md.wrong_option = ? AND s.category = 'School'
     """, (quiz_id, wrong_option.upper()))
     row = cursor.fetchone()
     conn.close()
@@ -283,16 +556,25 @@ def get_mistake_detective(quiz_id, wrong_option):
 def record_confidence():
     """Records student confidence rating and evaluates calibration (Section 9)."""
     data = request.get_json() or {}
-    user_id = data.get("user_id", 1)
+    user_id = current_user_id()
     quiz_id = data.get("quiz_id")
     selected_option = data.get("selected_option", "")
     is_correct = bool(data.get("is_correct", False))
     confidence_level = data.get("confidence_level", "somewhat_sure")
 
-    evaluation = ai_engine.classify_confidence(is_correct, confidence_level)
-
     conn = get_db()
     cursor = conn.cursor()
+    cursor.execute("""
+    SELECT q.id FROM quizzes q
+    JOIN topics t ON q.topic_id = t.id
+    JOIN subjects s ON t.subject_id = s.id
+    WHERE q.id = ? AND s.category = 'School'
+    """, (quiz_id,))
+    if not cursor.fetchone():
+        conn.close()
+        return jsonify({"success": False, "error": "School quiz not found"}), 404
+
+    evaluation = ai_engine.classify_confidence(is_correct, confidence_level)
     cursor.execute("""
     INSERT INTO confidence_records (user_id, quiz_id, selected_option, is_correct, confidence_level, classification)
     VALUES (?, ?, ?, ?, ?, ?)
@@ -308,10 +590,12 @@ def get_flashcards(topic_id):
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("""
-    SELECT id, topic_id, front_prompt, back_answer, interval_day, repetition_count
-    FROM flashcards
-    WHERE topic_id = ?
-    ORDER BY id ASC
+    SELECT f.id, f.topic_id, f.front_prompt, f.back_answer, f.interval_day, f.repetition_count
+    FROM flashcards f
+    JOIN topics t ON f.topic_id = t.id
+    JOIN subjects s ON t.subject_id = s.id
+    WHERE f.topic_id = ? AND s.category = 'School'
+    ORDER BY f.id ASC
     """, (topic_id,))
     cards = [dict(row) for row in cursor.fetchall()]
     conn.close()
@@ -323,15 +607,24 @@ def evaluate_teach_back():
     data = request.get_json() or {}
     topic_slug = data.get("topic_slug", "photosynthesis")
     explanation = data.get("explanation", "").strip()
-    user_id = data.get("user_id", 1)
+    user_id = current_user_id()
 
     if not explanation:
         return jsonify({"success": False, "error": "Explanation cannot be empty"}), 400
 
+    conn = get_db()
+    topic = conn.execute("""
+    SELECT t.id FROM topics t
+    JOIN subjects s ON t.subject_id = s.id
+    WHERE t.slug = ? AND s.category = 'School'
+    """, (topic_slug,)).fetchone()
+    if not topic:
+        conn.close()
+        return jsonify({"success": False, "error": "School topic not found"}), 404
+
     result = ai_engine.evaluate_teach_back(topic_slug, explanation)
 
     # Award learning points
-    conn = get_db()
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET learning_points = learning_points + 25 WHERE id = ?", (user_id,))
     conn.commit()
@@ -340,23 +633,39 @@ def evaluate_teach_back():
     return jsonify(result)
 
 @app.route("/api/admin-stats", methods=["GET"])
+@roles_required("admin")
 def get_admin_stats():
     """Administrator dashboard metrics (Section 17)."""
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*) FROM users")
     total_users = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM subjects")
+    cursor.execute("SELECT COUNT(*) FROM subjects WHERE category = 'School'")
     total_subjects = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM topics")
+    cursor.execute("""
+    SELECT COUNT(*) FROM topics t
+    JOIN subjects s ON t.subject_id = s.id
+    WHERE s.category = 'School'
+    """)
     total_topics = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM quiz_attempts")
+    cursor.execute("""
+    SELECT COUNT(*) FROM quiz_attempts qa
+    JOIN topics t ON qa.topic_id = t.id
+    JOIN subjects s ON t.subject_id = s.id
+    WHERE s.category = 'School'
+    """)
     total_attempts = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM confidence_records")
+    cursor.execute("""
+    SELECT COUNT(*) FROM confidence_records cr
+    JOIN quizzes q ON cr.quiz_id = q.id
+    JOIN topics t ON q.topic_id = t.id
+    JOIN subjects s ON t.subject_id = s.id
+    WHERE s.category = 'School'
+    """)
     total_confidence = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM textbooks")
+    cursor.execute("SELECT COUNT(*) FROM textbooks WHERE class_num BETWEEN 8 AND 10")
     total_textbooks = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM exam_materials")
+    cursor.execute("SELECT COUNT(*) FROM exam_materials WHERE grade_level IN ('Class 8', 'Class 9', 'Class 10')")
     total_exam_materials = cursor.fetchone()[0]
     conn.close()
     return jsonify({
@@ -384,12 +693,18 @@ def get_textbooks():
     medium = request.args.get("medium")
     search = request.args.get("search")
 
-    query = "SELECT * FROM textbooks WHERE 1=1"
+    query = "SELECT * FROM textbooks WHERE class_num BETWEEN 8 AND 10"
     params = []
 
     if class_num:
+        try:
+            class_num = int(class_num)
+        except ValueError:
+            return jsonify({"success": False, "error": "Class must be 8, 9, or 10"}), 400
+        if class_num not in (8, 9, 10):
+            return jsonify({"success": False, "error": "Class must be 8, 9, or 10"}), 400
         query += " AND class_num = ?"
-        params.append(int(class_num))
+        params.append(class_num)
     if subject and subject != "All":
         query += " AND subject = ?"
         params.append(subject)
@@ -409,16 +724,16 @@ def get_textbooks():
     books = [dict(row) for row in cursor.fetchall()]
 
     # Collect metadata for filters
-    cursor.execute("SELECT DISTINCT class_num FROM textbooks ORDER BY class_num ASC")
+    cursor.execute("SELECT DISTINCT class_num FROM textbooks WHERE class_num BETWEEN 8 AND 10 ORDER BY class_num ASC")
     classes = [r[0] for r in cursor.fetchall()]
 
-    cursor.execute("SELECT DISTINCT subject FROM textbooks ORDER BY subject ASC")
+    cursor.execute("SELECT DISTINCT subject FROM textbooks WHERE class_num BETWEEN 8 AND 10 ORDER BY subject ASC")
     subjects = [r[0] for r in cursor.fetchall()]
 
-    cursor.execute("SELECT DISTINCT medium FROM textbooks ORDER BY medium ASC")
+    cursor.execute("SELECT DISTINCT medium FROM textbooks WHERE class_num BETWEEN 8 AND 10 ORDER BY medium ASC")
     mediums = [r[0] for r in cursor.fetchall()]
 
-    cursor.execute("SELECT COUNT(*), SUM(file_size_mb) FROM textbooks WHERE file_exists = 1")
+    cursor.execute("SELECT COUNT(*), SUM(file_size_mb) FROM textbooks WHERE file_exists = 1 AND class_num BETWEEN 8 AND 10")
     stats_row = cursor.fetchone()
     total_count = stats_row[0] or 0
     total_size_mb = round(stats_row[1] or 0.0, 1)
@@ -446,7 +761,7 @@ def get_textbook_detail(book_id):
     """Returns single textbook metadata."""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM textbooks WHERE id = ?", (book_id,))
+    cursor.execute("SELECT * FROM textbooks WHERE id = ? AND class_num BETWEEN 8 AND 10", (book_id,))
     row = cursor.fetchone()
     conn.close()
     if not row:
@@ -462,7 +777,7 @@ def read_textbook(book_id):
     """Serves the PDF for inline browser viewing in iframe or tab."""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT filename, title FROM textbooks WHERE id = ?", (book_id,))
+    cursor.execute("SELECT filename, title FROM textbooks WHERE id = ? AND class_num BETWEEN 8 AND 10", (book_id,))
     row = cursor.fetchone()
     conn.close()
     if not row:
@@ -480,7 +795,7 @@ def download_textbook(book_id):
     """Serves the PDF as an attachment download for offline learning."""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT filename, title FROM textbooks WHERE id = ?", (book_id,))
+    cursor.execute("SELECT filename, title FROM textbooks WHERE id = ? AND class_num BETWEEN 8 AND 10", (book_id,))
     row = cursor.fetchone()
     conn.close()
     if not row:
@@ -503,7 +818,7 @@ def get_related_textbooks(topic_slug):
     SELECT t.id, t.name, t.slug, t.textbook_ref, t.textbook_id, s.name as subject_name
     FROM topics t
     JOIN subjects s ON t.subject_id = s.id
-    WHERE t.slug = ?
+    WHERE t.slug = ? AND s.category = 'School'
     """, (topic_slug,))
     topic_row = cursor.fetchone()
 
@@ -525,13 +840,17 @@ def get_related_textbooks(topic_slug):
         elif "kan" in s_name: sub_key = "Kannada"
         elif "eng" in s_name: sub_key = "English"
         elif "hin" in s_name: sub_key = "Hindi"
-        elif "soc" in s_name: sub_key = "Science"
+        elif "soc" in s_name: sub_key = "Social Science"
 
+    class_num = request.args.get("class", session.get("grade", "Class 10"))
+    class_num = "".join(ch for ch in str(class_num) if ch.isdigit())
+    if class_num not in ("8", "9", "10"):
+        class_num = "10"
     cursor.execute("""
-    SELECT * FROM textbooks 
-    WHERE class_num = 10 AND subject = ?
+    SELECT * FROM textbooks
+    WHERE class_num = ? AND subject = ?
     ORDER BY medium ASC, title ASC
-    """, (sub_key,))
+    """, (int(class_num), sub_key))
     books = [dict(row) for row in cursor.fetchall()]
     conn.close()
 
@@ -555,12 +874,19 @@ def get_related_textbooks(topic_slug):
 def get_exam_materials():
     """Returns examination blueprints, formula sheets, mock papers, and definitions."""
     material_type = request.args.get("type")
+    grade = request.args.get("grade") or session.get("grade", "Class 10")
+    grade_num = "".join(ch for ch in str(grade) if ch.isdigit())
+    if grade_num not in ("8", "9", "10"):
+        grade_num = "10"
     conn = get_db()
     cursor = conn.cursor()
+    query = "SELECT * FROM exam_materials WHERE grade_level = ?"
+    params = [f"Class {grade_num}"]
     if material_type and material_type != "All":
-        cursor.execute("SELECT * FROM exam_materials WHERE material_type = ?", (material_type,))
-    else:
-        cursor.execute("SELECT * FROM exam_materials ORDER BY id ASC")
+        query += " AND material_type = ?"
+        params.append(material_type)
+    query += " ORDER BY id ASC"
+    cursor.execute(query, params)
     rows = cursor.fetchall()
     conn.close()
 
@@ -589,9 +915,11 @@ def get_exam_materials():
 # BOOKMARKS & SAVED NOTES (SECTION 19)
 # ==========================================
 
+@app.route("/api/bookmarks", defaults={"user_id": None}, methods=["GET"])
 @app.route("/api/bookmarks/<int:user_id>", methods=["GET"])
 def get_bookmarks(user_id):
     """Returns saved notes, textbooks, and formulas for the user."""
+    user_id = current_user_id()
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM bookmarks WHERE user_id = ? ORDER BY id DESC", (user_id,))
@@ -603,7 +931,7 @@ def get_bookmarks(user_id):
 def toggle_bookmark():
     """Adds or removes a bookmark."""
     data = request.get_json() or {}
-    user_id = data.get("user_id", 1)
+    user_id = current_user_id()
     item_type = data.get("item_type", "topic")
     item_id = str(data.get("item_id", ""))
     title = data.get("title", "Saved Item")
@@ -629,12 +957,17 @@ def toggle_bookmark():
     return jsonify({"success": True, "bookmarked": bookmarked})
 
 
+@app.route("/api/progress", defaults={"user_id": None}, methods=["GET"])
 @app.route("/api/progress/<int:user_id>", methods=["GET"])
 def get_user_progress(user_id):
 
     """Returns analytics, overall completion %, topic breakdown, and detected gaps (Slide 25 Mockup 8)."""
+    user_id = current_user_id()
+    grade_num = "".join(ch for ch in str(request.args.get("grade") or session.get("grade", "Class 10")) if ch.isdigit())
+    if grade_num not in ("8", "9", "10"):
+        grade_num = "10"
     conn = get_db()
-    gaps = ai_engine.detect_learning_gaps(user_id, conn)
+    gaps = ai_engine.detect_learning_gaps(user_id, conn, grade_num)
 
     # Calculate overall stats
     total_topics = len(gaps)
@@ -677,9 +1010,11 @@ def get_user_progress(user_id):
         "topics_gaps": gaps
     })
 
+@app.route("/api/study-plan", defaults={"user_id": None}, methods=["GET"])
 @app.route("/api/study-plan/<int:user_id>", methods=["GET"])
 def get_study_plan(user_id):
     """Returns study plan schedule grouped by day (Slide 25 Mockup 9)."""
+    user_id = current_user_id()
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("""
@@ -704,29 +1039,22 @@ def toggle_study_task():
 
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("UPDATE study_tasks SET is_completed = 1 - is_completed WHERE id = ?", (task_id,))
+    cursor.execute(
+        "UPDATE study_tasks SET is_completed = 1 - is_completed WHERE id = ? AND user_id = ?",
+        (task_id, current_user_id()),
+    )
+    if cursor.rowcount == 0:
+        conn.close()
+        return jsonify({"success": False, "error": "Study task not found"}), 404
     conn.commit()
 
-    cursor.execute("SELECT is_completed FROM study_tasks WHERE id = ?", (task_id,))
+    cursor.execute("SELECT is_completed FROM study_tasks WHERE id = ? AND user_id = ?", (task_id, current_user_id()))
     new_status = cursor.fetchone()["is_completed"]
     conn.close()
     return jsonify({"success": True, "task_id": task_id, "is_completed": bool(new_status)})
 
-@app.route("/api/career-guidance", methods=["GET"])
-def get_career_guidance():
-    """Returns career pathways matching student interests (Slide 25 Mockup 10)."""
-    category = request.args.get("category")
-    conn = get_db()
-    cursor = conn.cursor()
-    if category and category != "All":
-        cursor.execute("SELECT * FROM career_paths WHERE category = ?", (category,))
-    else:
-        cursor.execute("SELECT * FROM career_paths")
-    careers = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return jsonify({"success": True, "careers": careers})
-
 @app.route("/api/teacher-analytics", methods=["GET"])
+@roles_required("teacher", "admin")
 def get_teacher_analytics():
     """Teacher view aggregating student performance, common gaps, and recommendations."""
     conn = get_db()
@@ -744,13 +1072,17 @@ def get_teacher_analytics():
     FROM topics t
     JOIN subjects s ON t.subject_id = s.id
     LEFT JOIN quiz_attempts qa ON t.id = qa.topic_id
+    WHERE s.category = 'School'
     GROUP BY t.id
     ORDER BY class_average ASC
     """)
     topic_stats = [dict(row) for row in cursor.fetchall()]
 
     # Student list
-    cursor.execute("SELECT id, full_name, grade, preferred_language FROM users WHERE role = 'student'")
+    cursor.execute("""
+    SELECT id, full_name, grade, preferred_language FROM users
+    WHERE role = 'student' AND grade IN ('Class 8', 'Class 9', 'Class 10')
+    """)
     students = [dict(row) for row in cursor.fetchall()]
 
     conn.close()
@@ -808,7 +1140,7 @@ if __name__ == "__main__":
 
     print("=" * 70)
     print(">> LearnSphere AI - Personalized Learning Support System")
-    print("   SMVITM Bantakal | Department of AI & Data Science | Team 11")
+    print("   Karnataka DSERT School Curriculum | Classes 8, 9 and 10")
     print("=" * 70)
     print(f">> Local Computer Access:       http://localhost:5000")
     print(f">> Mobile / LAN Network Access: http://{primary_ip}:5000")
@@ -820,5 +1152,3 @@ if __name__ == "__main__":
     print("=" * 70)
     
     app.run(host="0.0.0.0", port=5000, debug=True)
-
-

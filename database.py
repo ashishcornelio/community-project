@@ -10,7 +10,7 @@ Supports Master Prompt Specifications:
 - Smart Revision & Spaced Repetition Flashcards
 - Teach-Back Mode (Student explains concept)
 - Examination Preparation Centre
-- School & College Curricula
+- Karnataka DSERT School Curriculum (Classes 8, 9, 10)
 - User Roles (Student, Teacher, Administrator)
 """
 
@@ -18,13 +18,112 @@ import sqlite3
 import os
 import json
 from datetime import datetime, date, timedelta
+from werkzeug.security import generate_password_hash
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "learnsphere.db")
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "learnsphere.db")
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+COLLEGE_SUBJECT_CODES = ('CS-C', 'CS-DSA', 'AIDS-AI')
+LEGACY_COLLEGE_SLUGS = ('c-pointers-memory', 'data-structures-stack-queue')
+
+
+def migrate_schema(conn):
+    """Bring pre-existing databases up to date without losing user data."""
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(users)")
+    columns = {row[1] for row in cursor.fetchall()}
+
+    if "email" not in columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN email TEXT")
+    if "password_hash" not in columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''")
+
+    cursor.execute("UPDATE users SET email = username || '@svh.edu' WHERE email IS NULL OR email = ''")
+
+    demo_passwords = {
+        'arjun_student': 'student123',
+        'ananya_student': 'student123',
+        'pooja_teacher': 'teacher123',
+        'admin_smvitm': 'admin123',
+        'admin_svh': 'admin123',
+    }
+    for username, password in demo_passwords.items():
+        digest = generate_password_hash(password)
+        cursor.execute(
+            "UPDATE users SET password_hash = ? WHERE username = ? AND (password_hash IS NULL OR password_hash = '')",
+            (digest, username),
+        )
+
+    cursor.execute("""
+    UPDATE users
+    SET username = 'admin_svh', email = 'admin@svh.edu',
+        school = 'Shri Vishnumoorthi Hayavadanaswami High School, Innanje'
+    WHERE username = 'admin_smvitm'
+    """)
+    conn.commit()
+
+
+def cleanup_legacy_college_content(conn):
+    """Remove legacy non-school curriculum and career guidance records."""
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT id FROM subjects WHERE category = 'College' OR code IN (%s)" %
+        ",".join("?" for _ in COLLEGE_SUBJECT_CODES),
+        COLLEGE_SUBJECT_CODES,
+    )
+    subject_ids = [row[0] for row in cursor.fetchall()]
+
+    topic_ids = []
+    if subject_ids:
+        cursor.execute(
+            "SELECT id FROM topics WHERE subject_id IN (%s)" % ",".join("?" for _ in subject_ids),
+            subject_ids,
+        )
+        topic_ids.extend(row[0] for row in cursor.fetchall())
+
+    cursor.execute(
+        "SELECT id FROM topics WHERE slug IN (%s)" % ",".join("?" for _ in LEGACY_COLLEGE_SLUGS),
+        LEGACY_COLLEGE_SLUGS,
+    )
+    topic_ids.extend(row[0] for row in cursor.fetchall())
+    topic_ids = sorted(set(topic_ids))
+
+    if topic_ids:
+        placeholders = ",".join("?" for _ in topic_ids)
+        cursor.execute("SELECT id FROM quizzes WHERE topic_id IN (%s)" % placeholders, topic_ids)
+        quiz_ids = [row[0] for row in cursor.fetchall()]
+
+        if quiz_ids:
+            quiz_placeholders = ",".join("?" for _ in quiz_ids)
+            cursor.execute("DELETE FROM quiz_hints WHERE quiz_id IN (%s)" % quiz_placeholders, quiz_ids)
+            cursor.execute("DELETE FROM mistake_detective WHERE quiz_id IN (%s)" % quiz_placeholders, quiz_ids)
+            cursor.execute("DELETE FROM confidence_records WHERE quiz_id IN (%s)" % quiz_placeholders, quiz_ids)
+
+        for table in ("topic_prerequisites", "quiz_attempts", "learning_gaps", "flashcards", "teach_back_prompts", "quizzes"):
+            cursor.execute("DELETE FROM %s WHERE topic_id IN (%s)" % (table, placeholders), topic_ids)
+        cursor.execute("DELETE FROM topics WHERE id IN (%s)" % placeholders, topic_ids)
+
+    if subject_ids:
+        cursor.execute(
+            "DELETE FROM subjects WHERE id IN (%s)" % ",".join("?" for _ in subject_ids),
+            subject_ids,
+        )
+
+    cursor.execute("""
+    DELETE FROM bookmarks
+    WHERE item_id IN ('c-pointers-memory', 'data-structures-stack-queue')
+       OR title LIKE '%Pointer%' OR title LIKE '%Data Structure%'
+    """)
+
+    cursor.execute("DROP TABLE IF EXISTS career_paths")
+    conn.commit()
+
 
 def init_db():
     conn = get_db()
@@ -35,15 +134,17 @@ def init_db():
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE,
+        password_hash TEXT NOT NULL DEFAULT '',
         full_name TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT 'student', -- 'student', 'teacher', 'admin'
-        education_level TEXT DEFAULT 'School', -- 'School' or 'College'
+        role TEXT NOT NULL DEFAULT 'student',
+        education_level TEXT DEFAULT 'School',
         grade TEXT DEFAULT 'Class 10',
         school TEXT DEFAULT 'Shri Vishnumoorthi Hayavadanaswami High School, Innanje',
-        preferred_language TEXT DEFAULT 'en', -- 'en', 'kn', 'hi'
+        preferred_language TEXT DEFAULT 'en',
         avatar TEXT DEFAULT '👨‍🎓',
-        learning_points INTEGER DEFAULT 350,
-        streak_days INTEGER DEFAULT 4,
+        learning_points INTEGER DEFAULT 0,
+        streak_days INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
@@ -54,7 +155,7 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         code TEXT UNIQUE NOT NULL,
-        category TEXT NOT NULL DEFAULT 'School', -- 'School' or 'College'
+        category TEXT NOT NULL DEFAULT 'School', -- School curriculum (Classes 8-10)
         icon TEXT NOT NULL,
         color TEXT NOT NULL,
         description TEXT NOT NULL
@@ -233,21 +334,6 @@ def init_db():
     );
     """)
 
-    # Career Pathways Table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS career_paths (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        category TEXT NOT NULL,
-        match_subjects TEXT NOT NULL,
-        description TEXT NOT NULL,
-        required_skills TEXT NOT NULL,
-        colleges TEXT NOT NULL,
-        entrance_exams TEXT NOT NULL,
-        salary_range TEXT NOT NULL
-    );
-    """)
-
     # Official Textbooks Table (Curriculum & DSERT Karnataka Board)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS textbooks (
@@ -292,6 +378,7 @@ def init_db():
     """)
 
     conn.commit()
+    migrate_schema(conn)
     seed_master_data(conn)
     seed_textbooks(conn)
     seed_exam_materials(conn)
@@ -303,6 +390,10 @@ def init_db():
     except Exception as e:
         print("Curriculum sync:", e)
 
+    conn = get_db()
+    cleanup_legacy_college_content(conn)
+    conn.close()
+
 def seed_master_data(conn):
     cursor = conn.cursor()
 
@@ -311,29 +402,27 @@ def seed_master_data(conn):
     if cursor.fetchone()[0] > 0:
         return
 
-    # Seed Users
-    cursor.execute("""
-    INSERT INTO users (username, full_name, role, education_level, grade, school, preferred_language, avatar, learning_points, streak_days)
-    VALUES 
-    ('arjun_student', 'Arjun Rao', 'student', 'School', 'Class 10', 'Shri Vishnumoorthi Hayavadanaswami High School, Innanje', 'en', '👨‍🎓', 420, 5),
-    ('ananya_student', 'Ananya Shenoy', 'student', 'School', 'Class 9', 'Shri Vishnumoorthi Hayavadanaswami High School, Innanje', 'kn', '👩‍🎓', 380, 3),
-    ('pooja_teacher', 'Mrs. Pooja (Social Science)', 'teacher', 'School', 'Faculty', 'Shri Vishnumoorthi Hayavadanaswami High School, Innanje', 'en', '👩‍🏫', 0, 0),
-    ('admin_smvitm', 'Administrator', 'admin', 'College', 'Department Coordinator', 'SMVITM Bantakal', 'en', '🛡️', 0, 0);
-    """)
+    def _hash(password):
+        return generate_password_hash(password)
 
-    # Seed Subjects (Both School & College)
+    # Seed Users with password hashes
+    cursor.execute("""
+    INSERT INTO users (username, email, password_hash, full_name, role, education_level, grade, school, preferred_language, avatar, learning_points, streak_days)
+    VALUES 
+    ('arjun_student', 'arjun@svh.edu', ?, 'Arjun Rao', 'student', 'School', 'Class 10', 'Shri Vishnumoorthi Hayavadanaswami High School, Innanje', 'en', '👨‍🎓', 420, 5),
+    ('ananya_student', 'ananya@svh.edu', ?, 'Ananya Shenoy', 'student', 'School', 'Class 9', 'Shri Vishnumoorthi Hayavadanaswami High School, Innanje', 'kn', '👩‍🎓', 380, 3),
+    ('pooja_teacher', 'pooja@svh.edu', ?, 'Mrs. Pooja (Social Science)', 'teacher', 'School', 'Faculty', 'Shri Vishnumoorthi Hayavadanaswami High School, Innanje', 'en', '👩‍🏫', 0, 0),
+    ('admin_svh', 'admin@svh.edu', ?, 'Administrator', 'admin', 'School', 'School Coordinator', 'Shri Vishnumoorthi Hayavadanaswami High School, Innanje', 'en', '🛡️', 0, 0)
+    """, (_hash('student123'), _hash('student123'), _hash('teacher123'), _hash('admin123')))
+
+    # Seed Subjects (School only - Classes 8, 9, 10)
     subjects_data = [
-        # School
-        ('Mathematics', 'MATH', 'School', '📐', '#3b82f6', 'Algebra, Linear Equations, Geometry, and Quadratic Equations.'),
-        ('Science', 'SCI', 'School', '🔬', '#10b981', 'Physics (Laws of Motion, Forces) and Biology (Photosynthesis).'),
-        ('Social Science', 'SOC', 'School', '🌍', '#f59e0b', 'History (French Revolution), Civics, and Geography.'),
-        ('English', 'ENG', 'School', '📖', '#8b5cf6', 'Grammar essentials, Tenses, and Active-Passive Voice.'),
-        ('Hindi', 'HIN', 'School', '🇮🇳', '#ec4899', 'Vyakaran (कारक और समास), Shabdkosh, and Sentence Formations.'),
-        ('Kannada', 'KAN', 'School', '🌟', '#f97316', 'ಕನ್ನಡ ಸಾಹಿತ್ಯ, ವ್ಯಾಕರಣ ಮತ್ತು ಪ್ರಬಂಧ ರಚನೆ.'),
-        # College (Engineering / Computer Science at SMVITM Bantakal)
-        ('Programming in C', 'CS-C', 'College', '💻', '#06b6d4', 'Variables, Conditionals, Loops, Pointers, and Memory Allocation.'),
-        ('Data Structures', 'CS-DSA', 'College', '🌲', '#8b5cf6', 'Arrays, Stacks, Queues, Linked Lists, Trees, and Graphs.'),
-        ('Artificial Intelligence', 'AIDS-AI', 'College', '🤖', '#6366f1', 'Search Algorithms, Knowledge Representation, and Machine Learning.')
+        ('Mathematics', 'MATH', 'School', '📐', '#3b82f6', 'Algebra, Geometry, Trigonometry, Linear Equations, and Quadratic Equations for Classes 8-10.'),
+        ('Science', 'SCI', 'School', '🔬', '#10b981', 'Physics (Light, Electricity, Newton\'s Laws), Chemistry (Carbon Compounds, Acids & Bases), and Biology (Photosynthesis, Heredity) for Classes 8-10.'),
+        ('Social Science', 'SOC', 'School', '🌍', '#f59e0b', 'History (Revolutions, World Wars, Indian Independence), Civics (Democracy, Constitution), and Geography for Classes 8-10.'),
+        ('English', 'ENG', 'School', '📖', '#8b5cf6', 'Grammar, Prose, Poetry, Letter Writing, and Essay composition for Classes 8-10.'),
+        ('Hindi', 'HIN', 'School', '🇮🇳', '#ec4899', 'व्याकरण (Grammar), कारक, समास, पद्य, गद्य और निबंध for Classes 8-10.'),
+        ('Kannada', 'KAN', 'School', '🌟', '#f97316', 'ಕನ್ನಡ ಸಾಹಿತ್ಯ, ವ್ಯಾಕರಣ ಮತ್ತು ಪ್ರಬಂಧ ರಚನೆ for Classes 8-10.'),
     ]
     cursor.executemany("""
     INSERT INTO subjects (name, code, category, icon, color, description)
@@ -425,31 +514,6 @@ def seed_master_data(conn):
             'Chemical Equation:\n6CO₂ + 6H₂O + Sunlight + Chlorophyll → C₆H₁₂O₆ + 6O₂',
             'photosynthesis',
             'Plant parts (roots, leaves, stem) and basic cellular structures.'
-        ),
-        # College - Programming in C
-        (
-            sub_map['CS-C'],
-            'Pointers & Dynamic Memory in C',
-            'c-pointers-memory',
-            '1st/2nd Sem B.Tech',
-            'Challenge',
-            'Understanding memory addresses, pointer arithmetic, dereferencing, and malloc/free.',
-            'A pointer is simply a variable that stores the house address of another variable in computer RAM! Instead of carrying the heavy furniture, you give someone the map address.',
-            """• Declaration: int *ptr;
-• Address-of operator (&): Gets memory address (&x).
-• Dereference operator (*): Accesses the value stored at the address (*ptr).
-• Memory Allocation: malloc(size) allocates bytes in Heap memory; free(ptr) releases it to prevent memory leaks.""",
-            """Pointers allow direct hardware memory manipulation, efficient array passing, and dynamic data structure construction. A pointer variable stores the hexadecimal virtual address of another variable. Improper usage leads to segmentation faults, dangling pointers, and memory leaks.""",
-            """EXAM CODING QUESTIONS:
-1. Swap two integers using pointers (call by reference).
-2. Dynamic array allocation using malloc() and free().
-3. Difference between *ptr++ and (*ptr)++.""",
-            'A web URL link on the internet: The link is a pointer that points to the actual webpage on a server!',
-            'ಸಿ ಪ್ರೋಗ್ರಾಮಿಂಗ್‌ನಲ್ಲಿ ಪಾಯಿಂಟರ್ (Pointer) ಇನ್ನೊಂದು ವೇರಿಯೇಬಲ್‌ನ ಮೆಮೊರಿ ವಿಳಾಸವನ್ನು (Memory Address) ಸಂಗ್ರಹಿಸುವ ವಿಶೇಷ ವೇರಿಯೇಬಲ್ ಆಗಿದೆ.',
-            'सी में पॉइंटर एक वेरिएबल है जो दूसरे वेरिएबल का मेमोरी एड्रेस स्टोर करता है।',
-            'Syntax:\nint x = 10;\nint *ptr = &x; // stores address of x\nprintf("%d", *ptr); // prints 10',
-            'c_pointer',
-            'Basic C variables, data types, and functions.'
         )
     ]
 
@@ -471,8 +535,8 @@ def seed_master_data(conn):
         (topic_map['linear-equations'], 'Algebraic Variables & Terms', 'demonstrated', 'Understands combining like terms.'),
         (topic_map['newtons-laws-motion'], 'Speed, Velocity & Acceleration', 'demonstrated', 'Calculates rate of change of position.'),
         (topic_map['newtons-laws-motion'], 'Vector Direction vs Scalar', 'needs_practice', 'Prerequisite recommended: Review force vector addition.'),
-        (topic_map['c-pointers-memory'], 'C Variables & Data Types', 'demonstrated', 'Understands integer sizes and memory.'),
-        (topic_map['c-pointers-memory'], 'Functions & Call Stack', 'needs_practice', 'Review pass-by-value vs pass-by-reference.')
+        (topic_map['photosynthesis'], 'Plant Cell Structure', 'demonstrated', 'Understands chloroplasts, stomata and leaf structure.'),
+        (topic_map['photosynthesis'], 'Basic Chemical Reactions', 'needs_practice', 'Review reactants, products and balanced equations.')
     ]
     cursor.executemany("""
     INSERT INTO topic_prerequisites (topic_id, prerequisite_name, mastery_status, recommendation)
@@ -515,18 +579,6 @@ def seed_master_data(conn):
             'x = 8',
             'B',
             'Expand the bracket: 2*x + 2*3 = 14 => 2x + 6 = 14. Subtract 6: 2x = 8. Divide by 2: x = 4.'
-        ),
-        # College C Pointers
-        (
-            topic_map['c-pointers-memory'],
-            'Challenge',
-            'If int x = 20; int *ptr = &x; what will printf("%d", *ptr) output?',
-            'Memory address of x',
-            '20',
-            'Garbage value',
-            'Compiler syntax error',
-            'B',
-            'The dereference operator (*) accesses the value stored at the pointed address, which is 20.'
         )
     ]
 
@@ -584,7 +636,7 @@ def seed_master_data(conn):
         (topic_map['newtons-laws-motion'], "Do action-reaction forces cancel each other out?", "No! They never cancel each other because they act on TWO DIFFERENT bodies.", 5),
         (topic_map['linear-equations'], "What is the degree of a linear equation?", "Degree is 1 (the variable's highest exponent is 1).", 1),
         (topic_map['photosynthesis'], "Where do the light-dependent reactions take place?", "In the thylakoid membranes / grana of the chloroplast.", 2),
-        (topic_map['c-pointers-memory'], "What does the '&' operator do in C?", "Address-of operator: It returns the memory address where the variable is stored.", 1)
+        (topic_map['photosynthesis'], "Write the balanced equation for photosynthesis.", "6CO2 + 6H2O + sunlight + chlorophyll -> C6H12O6 + 6O2.", 5)
     ]
     cursor.executemany("""
     INSERT INTO flashcards (topic_id, front_prompt, back_answer, interval_day)
@@ -638,20 +690,6 @@ def seed_master_data(conn):
     VALUES 
     (1, ?, 'C', 0, 'very_sure', 'misconception_warning')
     """, (q3_id,))
-
-    # Seed Career Paths
-    careers_data = [
-        ('Artificial Intelligence & Data Engineering', 'Engineering', 'Mathematics, Computer Science, Statistics',
-         'Design scalable machine learning models and intelligent data systems.', 'Python, Linear Algebra, Algorithms', 'SMVITM Bantakal, IISc, NITK', 'KCET, JEE Main', '₹7 - ₹28 LPA'),
-        ('Medicine & Healthcare (MBBS / BDS)', 'Medicine', 'Biology, Chemistry, Physics',
-         'Patient treatment, diagnostics, clinical healthcare advancement.', 'Anatomy, Clinical Diagnostics, Empathy', 'KMC Manipal, BMCRI, AIIMS', 'NEET UG', '₹8 - ₹35 LPA'),
-        ('Software Systems & Cloud Architecture', 'Engineering', 'Computer Science, C/Python, Data Structures',
-         'Build distributed systems, enterprise software, and cloud applications.', 'C, Java, System Design, Data Structures', 'SMVITM Bantakal, RVCE, PES', 'KCET, COMEDK', '₹6 - ₹24 LPA')
-    ]
-    cursor.executemany("""
-    INSERT INTO career_paths (title, category, match_subjects, description, required_skills, colleges, entrance_exams, salary_range)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, careers_data)
 
     conn.commit()
 
@@ -894,4 +932,3 @@ def seed_exam_materials(conn):
 if __name__ == "__main__":
     init_db()
     print("LearnSphere Master Database Initialized successfully.")
-

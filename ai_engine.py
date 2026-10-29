@@ -43,12 +43,6 @@ class AIEngine:
                 "keywords": ["balance", "variable", "both sides", "inverse", "equal"],
                 "model_answer": "A linear equation is like a balance scale where the variable has degree 1. To solve for the unknown, we isolate the variable by performing inverse arithmetic operations equally on both sides.",
                 "tip": "Explain the golden rule: whatever you do to the left side must be done to the right side."
-            },
-            "c-pointers-memory": {
-                "title": "Pointers & Memory in C",
-                "keywords": ["address", "memory", "variable", "dereference", "pointer"],
-                "model_answer": "In C, a pointer is a variable that stores the memory address of another variable. Using the '&' operator gives the address, while '*' dereferences the pointer to access or modify the value at that address.",
-                "tip": "Emphasize the difference between the pointer itself (the address) and the value stored at that address."
             }
         }
 
@@ -137,56 +131,31 @@ class AIEngine:
         else:
             return "Standard"
 
-    def solve_doubt(self, query: str, subject: str = "General", language: str = "en") -> dict:
-        """AI Doubt Solver matching Slide 25 & Section 20."""
-        clean_q = query.strip().lower()
+    def solve_doubt(self, query: str, subject: str = "General", language: str = "en",
+                    grade: str = None, textbook_id: int = None) -> dict:
+        """
+        AI Doubt Solver (Section 20), grounded in the local textbook PDF library.
 
-        # Offline domain matching
-        if any(w in clean_q for w in ["pointer", "memory", "malloc", "address", "&x", "*ptr"]):
-            title = "Pointers & Memory in C"
-            simple = "A pointer holds a memory address where data lives. Using & gets the address, and * gets the data inside."
-            example = "int x = 5; int *p = &x; printf('%d', *p); // prints 5"
-            kannada = "ಪಾಯಿಂಟರ್ ಎನ್ನುವುದು ಮೆಮೊರಿ ವಿಳಾಸವನ್ನು ಸಂಗ್ರಹಿಸುವ ವೇರಿಯೇಬಲ್ ಆಗಿದೆ."
-            hindi = "पॉइंटर एक वेरिएबल है जो दूसरे वेरिएबल का मेमोरी एड्रेस स्टोर करता है।"
-        elif any(w in clean_q for w in ["force", "motion", "newton", "inertia"]):
-            title = "Newton's Laws of Motion & Balanced Forces"
-            simple = "1st: Things resist motion changes (Inertia). 2nd: Force = mass × acceleration. 3rd: Every action has an equal and opposite reaction."
-            example = "A book on a table has balanced forces: gravity down = table push up, net force = 0!"
-            kannada = "ನ್ಯೂಟನ್ ಅವರ ಮೂರನೇ ನಿಯಮ: ಪ್ರತಿ ಕ್ರಿಯೆಗೆ ಸಮಾನವಾದ ಹಾಗೂ ವಿರುದ್ಧ ದಿಕ್ಕಿನಲ್ಲಿ ಒಂದು ಪ್ರತಿಕ್ರಿಯೆ ಇರುತ್ತದೆ."
-            hindi = "न्यूटन का तीसरा नियम: प्रत्येक क्रिया की समान और विपरीत प्रतिक्रिया होती है।"
-        elif any(w in clean_q for w in ["equation", "algebra", "linear", "solve", "2x"]):
-            title = "Linear Equations in One Variable"
-            simple = "A linear equation is a balance scale. Highest power of variable is 1. What you do to one side, do to the other!"
-            example = "2x + 4 = 10 => 2x = 6 => x = 3."
-            kannada = "ರೇಖೀಯ ಸಮೀಕರಣವು ಅಜ್ಞಾತ ಚರಾಂಶದ ಗರಿಷ್ಠ ಘಾತಾಂಕ 1 ಆಗಿರುವ ಸಮೀಕರಣ."
-            hindi = "रैखिक समीकरण में चर की अधिकतम घात 1 होती है।"
-        elif any(w in clean_q for w in ["photosynthesis", "plant", "chlorophyll", "leaf"]):
-            title = "Photosynthesis & Plant Nutrition"
-            simple = "Plants make food using sunlight, chlorophyll, water, and CO2, producing glucose and oxygen."
-            example = "6CO2 + 6H2O + Sunlight -> C6H12O6 + 6O2"
-            kannada = "ದ್ಯುತಿಸಂಶ್ಲೇಷಣೆ: ಸಸ್ಯಗಳು ಸೂರ್ಯನ ಬೆಳಕು, ಕ್ಲೋರೊಫಿಲ್, ನೀರು ಮತ್ತು CO2 ಬಳಸಿ ಆಹಾರ ತಯಾರಿಸುವ ಕ್ರಿಯೆ."
-            hindi = "प्रकाश संश्लेषण: हरे पौधे सूर्य के प्रकाश में भोजन बनाते हैं।"
-        else:
-            title = f"{subject} Query"
-            simple = f"Here is a simple breakdown for '{query}': Break the problem into given facts, apply the formula, and verify with a check."
-            example = "Always verify your answer by substituting back into the initial problem statement."
-            kannada = f"ನಿಮ್ಮ ಪ್ರಶ್ನೆ: {query}. ಪರಿಕಲ್ಪನೆಯನ್ನು ಸುಲಭ ಹಂತಗಳಲ್ಲಿ ವಿಭಜಿಸಿ ಕಲಿಯಿರಿ."
-            hindi = f"आपका प्रश्न: {query}। समस्या को छोटे चरणों में विभाजित करें।"
+        Answers are retrieved verbatim from a specific PDF page. If no matching
+        passage exists, the engine refuses to invent an answer instead of
+        returning a generic/random response.
+        """
+        from textbook_search import textbook_search_engine
 
-        explanation = simple
-        if language == "kn":
-            explanation = kannada
-        elif language == "hi":
-            explanation = hindi
+        class_num = None
+        if grade:
+            match = re.search(r"(8|9|10)", str(grade))
+            if match:
+                class_num = int(match.group(1))
 
-        reply = f"### 💡 {title}\n\n{explanation}\n\n**📌 Real-Life Example:**\n{example}\n\n*Would you like to try a quick practice question on this topic?*"
-        return {
-            "success": True,
-            "response": reply,
-            "topic": title,
-            "language": language,
-            "related_actions": ["Take Practice Quiz", "Generate Short Notes", "View Visual Simulation"]
-        }
+        result = textbook_search_engine.search(
+            query,
+            class_num=class_num,
+            subject=subject,
+            book_id=textbook_id,
+        )
+        result["language"] = language
+        return result
 
     def generate_notes(self, topic_slug: str, format_type: str = "short_notes", language: str = "en") -> dict:
         """Multi-Format Notes Generator (Section 5A)."""
@@ -196,5 +165,65 @@ class AIEngine:
             "format": format_type,
             "title": topic_slug.replace("-", " ").title()
         }
+
+    def detect_learning_gaps(self, user_id: int, conn, grade_num: str) -> list:
+        """Return mastery and revision status for school topics in the selected class."""
+        cursor = conn.cursor()
+        cursor.execute("""
+        SELECT t.id AS topic_id, t.name AS topic_name, t.grade_level,
+               s.name AS subject_name, s.color AS subject_color,
+               COUNT(qa.id) AS attempts,
+               AVG(qa.percentage) AS average_score,
+               lg.mastery_score, lg.status, lg.recommended_action
+        FROM topics t
+        JOIN subjects s ON s.id = t.subject_id AND s.category = 'School'
+        LEFT JOIN quiz_attempts qa ON qa.topic_id = t.id AND qa.user_id = ?
+        LEFT JOIN learning_gaps lg ON lg.topic_id = t.id AND lg.user_id = ?
+        WHERE t.grade_level LIKE ?
+        GROUP BY t.id, s.id, lg.mastery_score, lg.status, lg.recommended_action
+        ORDER BY s.id, t.id
+        """, (user_id, user_id, f"%{grade_num}%"))
+
+        topics = []
+        for row in cursor.fetchall():
+            attempts = row["attempts"]
+            score = row["mastery_score"]
+            if score is None:
+                score = row["average_score"] or 0
+            score = round(float(score), 1)
+
+            status = row["status"]
+            if status not in ("critical_gap", "needs_revision", "in_progress", "mastered"):
+                if attempts == 0:
+                    status = "not_started"
+                elif score < 50:
+                    status = "critical_gap"
+                elif score < 70:
+                    status = "needs_revision"
+                else:
+                    status = "mastered"
+
+            recommendation = row["recommended_action"]
+            if not recommendation:
+                recommendation = {
+                    "not_started": "Start with the simple explanation, then try a short practice quiz.",
+                    "critical_gap": "Review the foundation notes and work through a guided example.",
+                    "needs_revision": "Review recent mistakes and practise this topic again.",
+                    "in_progress": "Continue practising this topic to strengthen recall.",
+                    "mastered": "Topic mastered. Move on to another syllabus topic.",
+                }[status]
+
+            topics.append({
+                "topic_id": row["topic_id"],
+                "topic_name": row["topic_name"],
+                "grade_level": row["grade_level"],
+                "subject_name": row["subject_name"],
+                "subject_color": row["subject_color"],
+                "attempts": attempts,
+                "score": score,
+                "status": status,
+                "recommendation": recommendation,
+            })
+        return topics
 
 ai_engine = AIEngine()

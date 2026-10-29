@@ -1,27 +1,27 @@
 /**
- * LearnSphere AI - Progress Tracking, Study Plan, Career Guidance & Teacher Analytics
- * Covers Slide 25 Mockups 8, 9, 10 and Teacher Insights.
+ * LearnSphere AI - School Progress, Study Plan & Classroom Analytics
  */
 
 class ProgressTracker {
   constructor() {
-    this.userId = 1;
   }
 
   async init() {
     await this.loadUserProgress();
     await this.loadStudyPlan();
-    await this.loadCareerGuidance();
-    await this.loadTeacherAnalytics();
+    const role = window.appState && window.appState.currentUser.role;
+    if (role === "teacher" || role === "admin") {
+      await this.loadTeacherAnalytics();
+    }
   }
 
   // ==========================================
   // 1. PROGRESS TRACKING & LEARNING GAP DETECTION
   // ==========================================
   async loadUserProgress() {
-    const activeUserId = window.appState ? window.appState.currentUser.id : 1;
+    const grade = window.appState ? window.appState.currentGrade : "10";
     try {
-      const res = await fetch(`/api/progress/${activeUserId}`);
+      const res = await fetch(`/api/progress?grade=${grade}`);
       const data = await res.json();
       if (!data.success) return;
 
@@ -29,6 +29,8 @@ class ProgressTracker {
       const scoreValEl = document.getElementById("circle-score-val");
       const circleSvgFill = document.getElementById("circle-svg-fill");
       if (scoreValEl) scoreValEl.textContent = `${Math.round(data.overall_mastery)}%`;
+      const dashboardMastery = document.getElementById("metric-overall-mastery");
+      if (dashboardMastery) dashboardMastery.textContent = `${Math.round(data.overall_mastery)}%`;
 
       if (circleSvgFill) {
         const circumference = 2 * Math.PI * 70; // r=70
@@ -47,6 +49,10 @@ class ProgressTracker {
       if (progEl) progEl.textContent = data.in_progress;
       if (gapsEl) gapsEl.textContent = data.critical_gaps;
       if (unEl) unEl.textContent = data.not_started;
+      const dashboardCompleted = document.getElementById("metric-completed-count");
+      const dashboardGaps = document.getElementById("metric-critical-count");
+      if (dashboardCompleted) dashboardCompleted.textContent = data.completed;
+      if (dashboardGaps) dashboardGaps.textContent = data.critical_gaps;
 
       // Update Subject Progress Bars
       const subjectBarsContainer = document.getElementById("subject-progress-bars");
@@ -131,6 +137,11 @@ class ProgressTracker {
       if (gapAlertCard) {
         if (data.critical_gaps > 0) {
           gapAlertCard.style.display = "flex";
+          const criticalGap = data.topics_gaps.find(g => g.status === "critical_gap");
+          const alertTitle = document.getElementById("dash-gap-alert-title");
+          if (alertTitle && criticalGap) {
+            alertTitle.textContent = `Learning Gap Detected: ${criticalGap.topic_name} (${criticalGap.score}%)`;
+          }
           const alertMsg = document.getElementById("dash-gap-alert-msg");
           if (alertMsg) {
             alertMsg.innerHTML = `<strong>Attention Required:</strong> ${data.critical_gaps} learning gap(s) detected. AI has recommended targeted revision in your Study Plan.`;
@@ -149,13 +160,14 @@ class ProgressTracker {
   // 2. PERSONALIZED STUDY PLAN
   // ==========================================
   async loadStudyPlan() {
-    const activeUserId = window.appState ? window.appState.currentUser.id : 1;
     try {
-      const res = await fetch(`/api/study-plan/${activeUserId}`);
+      const res = await fetch("/api/study-plan");
       const data = await res.json();
       if (!data.success) return;
 
       const container = document.getElementById("study-tasks-container");
+      const taskCount = document.getElementById("metric-task-count");
+      if (taskCount) taskCount.textContent = data.tasks.length;
       if (!container) return;
 
       if (data.tasks.length === 0) {
@@ -217,59 +229,7 @@ class ProgressTracker {
   }
 
   // ==========================================
-  // 3. CAREER GUIDANCE PORTAL
-  // ==========================================
-  async loadCareerGuidance(category = "All") {
-    try {
-      const url = category === "All" ? "/api/career-guidance" : `/api/career-guidance?category=${encodeURIComponent(category)}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if (!data.success) return;
-
-      const container = document.getElementById("career-cards-container");
-      if (!container) return;
-
-      container.innerHTML = data.careers.map(c => `
-        <div class="career-card glass-panel">
-          <div>
-            <span class="career-badge">${c.category}</span>
-            <h3 style="font-size:1.3rem; margin-bottom:0.4rem; color:var(--text-primary);">${c.title}</h3>
-            <p style="font-size:0.88rem; color:var(--text-secondary); margin-bottom:1rem; line-height:1.5;">${c.description}</p>
-            
-            <div style="font-size:0.82rem; margin-bottom:0.75rem;">
-              <strong style="color:var(--text-muted); text-transform:uppercase; font-size:0.72rem; letter-spacing:0.05em;">Related School Subjects:</strong>
-              <div style="color:#a5b4fc; font-weight:600; margin-top:0.2rem;">${c.match_subjects}</div>
-            </div>
-
-            <div style="font-size:0.82rem; margin-bottom:0.75rem;">
-              <strong style="color:var(--text-muted); text-transform:uppercase; font-size:0.72rem; letter-spacing:0.05em;">Entrance Exams:</strong>
-              <div style="color:#34d399; font-weight:600; margin-top:0.2rem;">${c.entrance_exams}</div>
-            </div>
-
-            <div style="font-size:0.82rem; margin-bottom:1rem;">
-              <strong style="color:var(--text-muted); text-transform:uppercase; font-size:0.72rem; letter-spacing:0.05em;">Top Colleges (Karnataka & India):</strong>
-              <div style="color:var(--text-secondary); margin-top:0.2rem;">${c.colleges}</div>
-            </div>
-          </div>
-
-          <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border-color); padding-top:0.9rem; margin-top:0.5rem;">
-            <div style="font-size:0.82rem;">
-              <span style="color:var(--text-muted);">Package Range:</span><br>
-              <strong style="color:var(--accent); font-family:var(--font-heading);">${c.salary_range}</strong>
-            </div>
-            <button class="btn-secondary" style="padding:0.45rem 0.9rem; font-size:0.85rem;" onclick="alert('Roadmap for ${c.title}: Complete Class 10 with strong Math/Science foundations, enroll in relevant PUC/12th stream, and prepare for ${c.entrance_exams}.')">
-              View Roadmap →
-            </button>
-          </div>
-        </div>
-      `).join("");
-    } catch (err) {
-      console.error("Error loading careers:", err);
-    }
-  }
-
-  // ==========================================
-  // 4. TEACHER / ADMIN ANALYTICS PORTAL
+  // 3. SCHOOL CLASSROOM ANALYTICS
   // ==========================================
   async loadTeacherAnalytics() {
     try {

@@ -4,3 +4,4 @@ venv/
 # create a db file with name learnsphere.db
 __pycache__/
 text books/
+data/

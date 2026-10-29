@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LearnSphere AI – Personalized Learning Support System | SMVITM Bantakal</title>
-  <meta name="description" content="AI-powered personalized learning support system designed for high school students. Simple explanations, multilingual support (English, Kannada, Hindi), practice quizzes, learning gap detection, and visual simulations.">
+  <title>LearnSphere AI – Personalized Learning for Classes 8, 9 & 10</title>
+  <meta name="description" content="AI-powered personalized learning support for Karnataka DSERT high school students in Classes 8, 9 and 10. Simple explanations, multilingual support (English, Kannada, Hindi), practice quizzes, learning gap detection, and visual simulations.">
   <link rel="stylesheet" href="/static/css/style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>">
 </head>
@@ -17,7 +17,7 @@
         <div class="brand-icon">🌐</div>
         <div class="brand-meta">
           <span>LearnSphere AI</span>
-          <span class="brand-badge">SMVITM AIDS • Team 11</span>
+          <span class="brand-badge">Karnataka DSERT • Classes 8–10</span>
         </div>
       </a>
     </div>
@@ -36,9 +36,12 @@
       <button class="nav-tab-btn" data-view="visual-lab">🔬 Visual Lab</button>
       <button class="nav-tab-btn" data-view="study-plan">📅 Study Plan</button>
       <button class="nav-tab-btn" data-view="bookmarks">⭐ Bookmarks</button>
-      <button class="nav-tab-btn" data-view="career">🚀 Career</button>
+      {% if current_user.role in ('teacher', 'admin') %}
       <button class="nav-tab-btn" data-view="teacher">👩‍🏫 Teacher View</button>
+      {% endif %}
+      {% if current_user.role == 'admin' %}
       <button class="nav-tab-btn" data-view="admin">🛡️ Admin</button>
+      {% endif %}
     </nav>
 
     <!-- Header Controls -->
@@ -55,13 +58,13 @@
         <option value="hi">हिन्दी (Hindi)</option>
       </select>
 
-      <!-- User Persona Switcher -->
-      <select id="global-user-select" class="user-select" title="Switch User Profile">
-        <option value="arjun">👨‍🎓 Arjun (School Student, 10th)</option>
-        <option value="ananya">👩‍🎓 Ananya (School Student, 9th)</option>
-        <option value="pooja">👩‍🏫 Mrs. Pooja (Teacher)</option>
-        <option value="admin">🛡️ Administrator (System Health)</option>
-      </select>
+      <!-- Signed-in user -->
+      <span id="session-user-badge" class="chip" style="font-size:0.78rem; border-color:var(--secondary); color:#a7f3d0;">
+        👤 {{ current_user.full_name if current_user else 'Student' }}
+      </span>
+
+      <!-- Logout -->
+      <a href="/logout" class="btn-secondary" style="font-size:0.8rem; padding:0.45rem 0.8rem; text-decoration:none;">Logout</a>
 
       <!-- Theme Toggle -->
       <button id="theme-toggle-btn" class="theme-toggle-btn" title="Toggle Theme">☀️</button>
@@ -83,7 +86,7 @@
           Learn at Your Level. <span class="text-gradient">Practise at Your Pace.</span> Master It Yourself.
         </h1>
         <p class="hero-subtitle">
-          "One Topic, Many Ways to Learn" • Understand the student, not just their marks. Supporting both high school and college engineering students.
+          "One Topic, Many Ways to Learn" • Understand the student, not just their marks. Built for Karnataka DSERT students in Classes 8, 9 and 10.
         </p>
 
 
@@ -181,23 +184,17 @@
 
         <div class="feature-card glass-panel">
           <div class="feature-card-icon">🚀</div>
-          <h3>Career Guidance Portal</h3>
+          <h3>School-Syllabus Learning Support</h3>
           <p style="color:var(--text-secondary); font-size:0.92rem;">
-            Connects high school subject strengths with exciting career paths: Engineering, Medicine, Data Science, Civil Services, and top Karnataka colleges.
+            Study Mathematics, Science, Social Science and languages aligned to Karnataka DSERT Classes 8, 9 and 10.
           </p>
-          <a href="#career" onclick="window.navigateTo('career')" style="color:#a855f7; font-weight:700; font-size:0.88rem; text-decoration:none;">Explore Careers →</a>
         </div>
       </div>
 
       <!-- Institutional Attribution Footer -->
       <div class="glass-panel" style="padding:1.5rem; text-align:center; border-radius:var(--radius-md);">
         <p style="color:var(--text-secondary); font-size:0.9rem;">
-          <strong>Shri Madhwa Vadiraja Institute of Technology and Management (SMVITM), Bantakal</strong><br>
-          Department of Artificial Intelligence & Data Science | IDT Prototype Project • Team Number: 11 (Section: AIDS)<br>
-          <span style="color:var(--text-muted); font-size:0.82rem;">
-            Team Members: Sri Devi K (4MW25AD043), T S Ritika (4MW25AD045), Bhushan (4MW25AD004), Ashish (4MW25AD003), Chethan (4MW25AD005)<br>
-            Under the guidance of: <strong>Ms. Tejaswini H</strong>, Head of Department, AI & DS
-          </span>
+          LearnSphere AI • Karnataka DSERT school learning support • Classes 8, 9 and 10
         </p>
       </div>
     </section>
@@ -211,19 +208,26 @@
         <div class="welcome-card glass-panel">
           <div class="welcome-info">
             <span class="badge-tag" style="background:rgba(99,102,241,0.2); color:#c7d2fe; margin-bottom:0.5rem; display:inline-block;">
-              👋 Student Portal
+              👋 {{ current_user.role|title }} Portal
             </span>
-            <h2>Welcome back, <span id="dash-user-name" class="text-gradient">Arjun Rao</span>!</h2>
+            <h2>Welcome back, <span id="dash-user-name" class="text-gradient">{{ current_user.full_name }}</span>!</h2>
             <p style="color:var(--text-secondary); max-width:480px;">
               Ready to master today's lessons? Your personalized study plan and revision recommendations are updated.
             </p>
-            <div class="welcome-meta">
-              <span class="badge-tag">🏫 SVH High School, Innanje</span>
-              <span class="badge-tag">🎓 Class 10th</span>
-              <span class="badge-tag">🔥 4-Day Learning Streak</span>
+            <div class="welcome-meta" style="align-items:center;">
+              <span class="badge-tag">🏫 {{ current_user.school }}</span>
+              <label class="badge-tag" style="display:inline-flex; align-items:center; gap:0.4rem; cursor:pointer;">
+                🎓 Grade
+                <select id="dash-grade-select" class="lang-select" style="font-size:0.8rem; padding:0.15rem 0.4rem; min-width:90px;">
+                  <option value="8">Class 8</option>
+                  <option value="9">Class 9</option>
+                  <option value="10" selected>Class 10</option>
+                </select>
+              </label>
+              <span class="badge-tag">🔥 {{ current_user.streak_days }}-Day Learning Streak</span>
             </div>
           </div>
-          <div style="font-size:3.5rem; text-align:center;">👨‍🎓</div>
+          <div style="font-size:3.5rem; text-align:center;">{{ current_user.avatar }}</div>
         </div>
 
         <!-- Quick AI Assistant Action Card -->
@@ -245,7 +249,7 @@
         <div class="metric-card glass-panel">
           <div class="metric-icon" style="background:rgba(99,102,241,0.15); color:var(--primary);">🎯</div>
           <div>
-            <div class="metric-val" id="metric-overall-mastery">78%</div>
+            <div class="metric-val" id="metric-overall-mastery">0%</div>
             <div class="metric-lbl">Overall Mastery</div>
           </div>
         </div>
@@ -253,7 +257,7 @@
         <div class="metric-card glass-panel">
           <div class="metric-icon" style="background:rgba(16,185,129,0.15); color:var(--secondary);">🏆</div>
           <div>
-            <div class="metric-val">12</div>
+            <div class="metric-val" id="metric-completed-count">0</div>
             <div class="metric-lbl">Topics Completed</div>
           </div>
         </div>
@@ -261,7 +265,7 @@
         <div class="metric-card glass-panel">
           <div class="metric-icon" style="background:rgba(239,68,68,0.15); color:var(--danger);">⚠️</div>
           <div>
-            <div class="metric-val" style="color:var(--danger);">1</div>
+            <div class="metric-val" id="metric-critical-count" style="color:var(--danger);">0</div>
             <div class="metric-lbl">Critical Gap Flagged</div>
           </div>
         </div>
@@ -269,7 +273,7 @@
         <div class="metric-card glass-panel">
           <div class="metric-icon" style="background:rgba(245,158,11,0.15); color:var(--accent);">📅</div>
           <div>
-            <div class="metric-val">4</div>
+            <div class="metric-val" id="metric-task-count">0</div>
             <div class="metric-lbl">Tasks in Study Plan</div>
           </div>
         </div>
@@ -280,7 +284,7 @@
         <div class="gap-alert-left">
           <span style="font-size:1.8rem;">⚠️</span>
           <div>
-            <h4 style="color:#f87171; margin-bottom:0.2rem;">Learning Gap Detected: Newton's Laws of Motion (33%)</h4>
+            <h4 id="dash-gap-alert-title" style="color:#f87171; margin-bottom:0.2rem;">Learning Gap Detected</h4>
             <p id="dash-gap-alert-msg" style="color:var(--text-secondary); font-size:0.88rem;">
               Your recent quiz score indicates difficulty with balanced forces. We have scheduled an interactive visual revision.
             </p>
@@ -467,44 +471,61 @@
         <div class="chat-messages" id="chat-messages">
           <div class="chat-bubble ai">
             <h4 style="color:#a5b4fc; margin-bottom:0.4rem;">👋 Namaskara, Student!</h4>
-            I am your personal LearnSphere AI Doubt Solver. You can ask me any question about <strong>Mathematics, Science, Social Science, English, or Hindi</strong>.
+            I am your LearnSphere AI Doubt Solver. I answer <strong>only from the official Karnataka State Board textbook PDFs</strong> in your library.
             <br><br>
-            I can explain formulas in simple words, provide everyday examples, and translate answers to <strong>Kannada</strong> or <strong>Hindi</strong>!
+            Every answer shows the <strong>book, chapter and page number</strong> with a link to open that exact PDF page. If the answer is not in your textbooks, I will say so instead of guessing.
           </div>
 
-          <!-- Pre-seeded example from Slide 25 Mockup 5 -->
+          <!-- Example grounded answer with a real textbook citation -->
           <div class="chat-bubble user">
-            Explain Newton's third law in simple words.
+            Explain reflection of light.
           </div>
 
           <div class="chat-bubble ai">
-            <h4 style="color:#a5b4fc; margin-bottom:0.4rem;">💡 Newton's Third Law of Motion</h4>
-            Newton's third law states: <em>"For every action force, there is an equal and opposite reaction force."</em>
+            <h4 style="color:#a5b4fc; margin-bottom:0.4rem;">📖 Answer found in your textbook</h4>
+            <strong>Karnataka 10th Class SCIENCE PART-2 (English Medium)</strong>
+            <br><em>Chapter 9: Light – Reflection and Refraction</em> | <strong>Page 134 (PDF page 66)</strong>
             <br><br>
-            <strong>In simple words:</strong> When one object pushes another object, the second object pushes right back with the exact same amount of push in the opposite direction!
+            <em>"A highly polished surface, such as a mirror, reflects most of the light falling on it. You are already familiar with the laws of reflection of light."</em>
             <br><br>
-            <strong>📌 Everyday Examples:</strong>
-            <br>• <strong>Walking:</strong> Your foot pushes the floor backward; the floor pushes your foot forward.
-            <br>• <strong>Rocket propulsion:</strong> Exhaust gas shoots downward; the rocket is propelled upward into space.
-            <br>• <strong>Recoil of a gun:</strong> The bullet shoots forward; the gun pushes backward against the shooter's shoulder.
-            <button class="audio-tts-btn" style="margin-top:0.75rem;" onclick="window.doubtSolver.speakText('Newton third law: For every action, there is an equal and opposite reaction. Examples include walking, rocket movement, and gun recoil.')">
-              🔊 Listen to Explanation
-            </button>
+            Answers are quoted from your prescribed textbook — never invented.
           </div>
         </div>
 
         <!-- Quick Suggestion Pills -->
         <div class="chat-suggestions-bar">
-          <span class="suggestion-pill">💡 Explain Newton's third law in simple words</span>
-          <span class="suggestion-pill">📐 How do I solve 2x + 3 = 7 step-by-step?</span>
-          <span class="suggestion-pill">🌿 Why do plant leaves look green?</span>
-          <span class="suggestion-pill">🌍 What caused the French Revolution in 1789?</span>
-          <span class="suggestion-pill">🗣️ ಕನ್ನಡದಲ್ಲಿ ವಿವರಿಸಿ (Explain in Kannada)</span>
+          <span class="suggestion-pill">Explain reflection of light</span>
+          <span class="suggestion-pill">What are metals and non-metals?</span>
+          <span class="suggestion-pill">What is heredity?</span>
+          <span class="suggestion-pill">What is a quadratic equation?</span>
+          <span class="suggestion-pill">Explain carbon compounds</span>
+        </div>
+
+        <!-- Textbook Scope (answers are grounded in these PDFs) -->
+        <div class="chat-scope-bar">
+          <label class="chat-scope-label">Class
+            <select id="doubt-class-select" class="chat-scope-select">
+              <option value="8">Class 8</option>
+              <option value="9">Class 9</option>
+              <option value="10" selected>Class 10</option>
+            </select>
+          </label>
+          <label class="chat-scope-label">Subject
+            <select id="doubt-subject-select" class="chat-scope-select">
+              <option value="Auto" selected>Auto-detect</option>
+              <option value="Maths">Mathematics</option>
+              <option value="Science">Science</option>
+              <option value="English">English</option>
+              <option value="Hindi">Hindi</option>
+              <option value="Kannada">Kannada</option>
+            </select>
+          </label>
+          <span class="chat-scope-hint">Answers are quoted from your textbook PDF with book, chapter and page number.</span>
         </div>
 
         <!-- Input Row -->
         <div class="chat-input-row">
-          <input type="text" id="chat-input" class="chat-input" placeholder="Type your doubt or question here... (e.g. Why is sky blue?)">
+          <input type="text" id="chat-input" class="chat-input" placeholder="Type your doubt or question here... (e.g. What is a quadratic equation?)">
           <button id="mic-btn" class="mic-btn" title="Speak your question">🎤</button>
           <button id="send-btn" class="send-btn" title="Send Question">➔</button>
         </div>
@@ -575,10 +596,22 @@
               Select Topic:
             </label>
             <select id="notes-topic-select" class="lang-select" style="width:100%;">
-              <option value="linear-equations">Mathematics: Linear Equations</option>
-              <option value="newtons-laws-motion">Science: Newton's Laws & Forces</option>
-              <option value="french-revolution" selected>Social Science: The French Revolution</option>
+              <option value="linear-equations" selected>Mathematics: Linear Equations</option>
+              <option value="quadratic-equations">Mathematics: Quadratic Equations</option>
+              <option value="arithmetic-progressions">Mathematics: Arithmetic Progressions</option>
+              <option value="trigonometry">Mathematics: Trigonometry</option>
+              <option value="newtons-laws-motion">Science: Force & Laws of Motion</option>
               <option value="photosynthesis">Science: Photosynthesis</option>
+              <option value="electricity-circuits">Science: Electricity & Circuits</option>
+              <option value="light-reflection-refraction">Science: Light & Refraction</option>
+              <option value="indian-constitution">Social Science: Indian Constitution</option>
+              <option value="advent-europeans-india">Social Science: Advent of Europeans</option>
+              <option value="active-passive-voice">English: Active & Passive Voice</option>
+              <option value="reported-speech">English: Reported Speech</option>
+              <option value="kannada-sandhigalu">Kannada: Sandhigalu</option>
+              <option value="kannada-samasagalu">Kannada: Samasagalu</option>
+              <option value="hindi-karak">Hindi: Kaarak</option>
+              <option value="hindi-samas">Hindi: Samaas</option>
             </select>
           </div>
 
@@ -604,8 +637,8 @@
           <div class="glass-panel" style="padding:2rem;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; border-bottom:1px solid var(--border-color); padding-bottom:1rem;">
               <div>
-                <span class="chip" style="font-size:0.75rem; margin-bottom:0.4rem;">Social Science • Class 9-10</span>
-                <h3 style="font-size:1.6rem;">The French Revolution (1789) - Short Notes</h3>
+                <span class="chip" style="font-size:0.75rem; margin-bottom:0.4rem;">Mathematics • Class 10 SSLC</span>
+                <h3 style="font-size:1.6rem;">Pair of Linear Equations - Short Notes</h3>
               </div>
               <div style="display:flex; gap:0.5rem;">
                 <button class="btn-secondary" onclick="window.print()">🖨️ Print</button>
@@ -615,10 +648,11 @@
 
             <div style="font-size:0.98rem; line-height:1.7;">
               <h4 style="color:#fbbf24; margin-bottom:0.4rem;">Key Highlights:</h4>
-              <p>• <strong>Outbreak:</strong> 14 July 1789 in Paris with the historic storming of the Bastille prison fortress.</p>
-              <p>• <strong>Social Structure:</strong> French society was divided into Three Estates. The 3rd Estate (peasants, workers, merchants) paid 100% of taxes while 1st & 2nd enjoyed tax-free luxury.</p>
-              <p>• <strong>Important Events:</strong> Tennis Court Oath, Declaration of the Rights of Man and of the Citizen, Reign of Terror (Robespierre), and rise of Napoleon Bonaparte.</p>
-              <p>• <strong>World Legacy:</strong> Universal ideals of <em>Liberty, Equality, and Fraternity (Liberté, Égalité, Fraternité)</em> and abolition of feudalism.</p>
+              <p>• <strong>Standard Form:</strong> a₁x + b₁y + c₁ = 0 and a₂x + b₂y + c₂ = 0.</p>
+              <p>• <strong>Unique Solution:</strong> a₁/a₂ ≠ b₁/b₂ — the lines intersect at exactly one point.</p>
+              <p>• <strong>Infinitely Many Solutions:</strong> a₁/a₂ = b₁/b₂ = c₁/c₂ — the lines are coincident.</p>
+              <p>• <strong>No Solution:</strong> a₁/a₂ = b₁/b₂ ≠ c₁/c₂ — the lines are parallel.</p>
+              <p>• <strong>Methods:</strong> Graphical method, substitution method and elimination method.</p>
             </div>
           </div>
         </div>
@@ -840,35 +874,51 @@
             </button>
           </div>
         </div>
-      </div>
-    </section>
 
-    <!-- ====================================================
-         10. CAREER GUIDANCE VIEW (Slide 25 Mockup 10)
-         ==================================================== -->
-    <section id="view-career" class="view-section">
-      <div class="section-title-row">
-        <div>
-          <h2>🚀 Career Guidance Portal</h2>
-          <p class="subheading">
-            Helping high school students discover future educational pathways and career options based on subject strengths.
-          </p>
+        <!-- Simulation 3: Photosynthesis -->
+        <div class="sim-card glass-panel">
+          <div>
+            <span class="chip" style="color:#f59e0b; border-color:#f59e0b; font-size:0.75rem;">Biology • Life Processes</span>
+            <h3 style="font-size:1.25rem; margin:0.4rem 0;">Photosynthesis: Leaf Factory</h3>
+            <p style="font-size:0.85rem; color:var(--text-secondary);">
+              Adjust sunlight, water and carbon dioxide to see how a leaf produces glucose and releases oxygen.
+            </p>
+          </div>
+
+          <canvas id="photosynthesis-canvas" class="sim-canvas" width="480" height="260"></canvas>
+
+          <div id="photosynthesis-readout" style="font-family:var(--font-mono); font-size:0.86rem; background:rgba(255,255,255,0.04); padding:0.6rem 0.85rem; border-radius:8px;">
+            6CO₂ + 6H₂O + Sunlight + Chlorophyll → C₆H₁₂O₆ + 6O₂
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-label">
+              <span>Sunlight:</span>
+              <span id="sunlight-val" style="color:#f59e0b; font-family:var(--font-mono);">70%</span>
+            </div>
+            <input type="range" id="sunlight-slider" class="sim-slider" min="0" max="100" step="5" value="70">
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-label">
+              <span>Water (H₂O):</span>
+              <span id="water-val" style="color:#38bdf8; font-family:var(--font-mono);">70%</span>
+            </div>
+            <input type="range" id="water-slider" class="sim-slider" min="0" max="100" step="5" value="70">
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-label">
+              <span>Carbon Dioxide (CO₂):</span>
+              <span id="co2-val" style="color:#34d399; font-family:var(--font-mono);">70%</span>
+            </div>
+            <input type="range" id="co2-slider" class="sim-slider" min="0" max="100" step="5" value="70">
+          </div>
+
+          <div id="photosynthesis-status" style="font-size:0.85rem; color:var(--text-secondary);">
+            Optimal conditions. The leaf is actively making glucose.
+          </div>
         </div>
-      </div>
-
-      <!-- Category Filter Tabs -->
-      <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:1.75rem;">
-        <button class="chip" onclick="window.progressTracker.loadCareerGuidance('All')">🌐 All Pathways</button>
-        <button class="chip" onclick="window.progressTracker.loadCareerGuidance('Engineering')">⚙️ Engineering</button>
-        <button class="chip" onclick="window.progressTracker.loadCareerGuidance('Medicine')">🩺 Medicine & Healthcare</button>
-        <button class="chip" onclick="window.progressTracker.loadCareerGuidance('Science & Research')">🤖 AI & Data Science</button>
-        <button class="chip" onclick="window.progressTracker.loadCareerGuidance('Arts & Humanities')">🏛️ Civil Services</button>
-        <button class="chip" onclick="window.progressTracker.loadCareerGuidance('Business & Management')">📊 Finance & CA</button>
-      </div>
-
-      <!-- Career Cards Container -->
-      <div id="career-cards-container" class="career-cards-grid">
-        <!-- Rendered dynamically -->
       </div>
     </section>
 
@@ -880,7 +930,7 @@
         <div class="section-title-row">
           <div>
             <span class="chip" style="font-size:0.75rem; margin-bottom:0.4rem; color:#f59e0b; border-color:#f59e0b;">
-              Teacher Portal: Mrs. Pooja (Social Science) & Mrs. Sushma (Headmistress)
+              Karnataka DSERT Classroom Analytics • Classes 8–10
             </span>
             <h2 style="font-size:1.85rem;">👩‍🏫 Classroom Analytics & Learning Gap Summary</h2>
           </div>
@@ -940,7 +990,7 @@
         </div>
 
         <p style="color:var(--text-secondary); margin-bottom:1.75rem; font-size:0.92rem;">
-          Platform governance, curriculum management, role permissions, and database telemetry.
+          Platform governance for the Classes 8?10 school curriculum, role permissions, and database telemetry.
         </p>
 
         <!-- Metrics Grid -->
@@ -955,14 +1005,14 @@
           <div class="metric-card glass-panel">
             <div class="metric-icon" style="background:rgba(16,185,129,0.15); color:var(--secondary);">📚</div>
             <div>
-              <div class="metric-val" id="admin-total-subjects">9</div>
+              <div class="metric-val" id="admin-total-subjects">6</div>
               <div class="metric-lbl">Active Curricula Subjects</div>
             </div>
           </div>
           <div class="metric-card glass-panel">
             <div class="metric-icon" style="background:rgba(245,158,11,0.15); color:var(--accent);">📖</div>
             <div>
-              <div class="metric-val" id="admin-total-topics">4</div>
+              <div class="metric-val" id="admin-total-topics">15</div>
               <div class="metric-lbl">Curated Topics</div>
             </div>
           </div>
@@ -991,7 +1041,7 @@
             <h4 style="font-size:1.15rem; color:#34d399; margin-bottom:0.75rem;">🗄️ Database & Storage Engine</h4>
             <div style="font-size:0.9rem; color:var(--text-secondary); line-height:1.7;">
               <p>• <strong>Engine:</strong> SQLite 3 with Write-Ahead Logging (WAL)</p>
-              <p>• <strong>Location:</strong> <code>learnsphere.db</code> (Local Workspace)</p>
+              <p>• <strong>Location:</strong> <code>data/learnsphere.db</code> (Local Workspace)</p>
               <p>• <strong>Tables Active:</strong> 11 relational tables (Users, Topics, Quizzes, Hints, Misconceptions, Confidence, Flashcards, Gaps)</p>
               <p>• <strong>Integrity Status:</strong> <span style="color:#10b981; font-weight:700;">NORMAL (All Foreign Keys Enforced)</span></p>
             </div>
@@ -1050,6 +1100,7 @@
               <option value="All">All Subjects</option>
               <option value="Maths">📐 Mathematics</option>
               <option value="Science">🔬 Science</option>
+              <option value="Social Science">🌍 Social Science</option>
               <option value="English">📖 English</option>
               <option value="Kannada">📝 Kannada</option>
               <option value="Hindi">✍️ Hindi</option>
@@ -1075,11 +1126,11 @@
     <section id="view-exam-prep" class="view-section">
       <div class="view-header">
         <div class="hero-pill-badge">
-          <span>🎯 Board Exam Blueprints</span> • <span>SSLC 2026 Model Papers</span> • <span>Formula Master</span>
+          <span>🎯 School Exam Blueprints</span> • <span>SSLC / SA Classes 8–10</span> • <span>Formula Master</span>
         </div>
         <h2 class="view-title">Examination Preparation Centre</h2>
         <p class="view-subtitle">
-          Curriculum-aligned revision materials, Karnataka SSLC board pattern mock examinations, step-by-step marking rubrics, and formula blueprints.
+          Karnataka DSERT revision materials, SSLC practice for Class 10, Summative Assessment (SA) preparation for Classes 8 and 9, and school-syllabus formula sheets.
         </p>
       </div>
 
@@ -1150,6 +1201,11 @@
     </div>
   </div>
 
+
+  <!-- Session user (injected from Flask) -->
+  <script>
+    window.__LEARNSPHERE_USER__ = {{ (current_user or {})|tojson }};
+  </script>
 
   <!-- Scripts -->
   <script src="/static/js/visual_lab.js"></script>

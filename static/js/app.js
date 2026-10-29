@@ -5,15 +5,19 @@
 
 class AppState {
   constructor() {
+    const sessionUser = window.__LEARNSPHERE_USER__ || {};
     this.currentView = "landing";
     this.currentLanguage = "en";
     this.currentUser = {
-      id: 1,
-      username: "arjun_student",
-      full_name: "Arjun Rao",
-      role: "student",
-      grade: "Class 10"
+      id: sessionUser.id || 1,
+      username: sessionUser.username || "arjun_student",
+      full_name: sessionUser.full_name || "Arjun Rao",
+      role: sessionUser.role || "student",
+      grade: sessionUser.grade || "Class 10",
+      school: sessionUser.school || "Shri Vishnumoorthi Hayavadanaswami High School, Innanje"
     };
+    const gradeMatch = String(this.currentUser.grade).match(/(8|9|10)/);
+    this.currentGrade = gradeMatch ? gradeMatch[1] : "10";
     this.currentTopicSlug = "linear-equations";
     this.currentTopicData = null;
     this.allTopics = [];
@@ -90,7 +94,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Initialize Components
   setupThemeToggle();
   setupLanguageSwitcher();
-  setupPersonaSwitcher();
+  setupGradeSelector();
   setupSearchAutocomplete();
   setupNotesGenerator();
   setupNetworkInfoBadge();
@@ -104,7 +108,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Load Initial Data
   await loadDashboardSubjects();
   await loadTopicLearningSidebar();
-  await loadTopicContent("linear-equations");
+  if (window.appState.currentTopicSlug) {
+    await loadTopicContent(window.appState.currentTopicSlug);
+  }
 
   // Hook navigation buttons
   document.querySelectorAll(".nav-tab-btn").forEach(btn => {
@@ -191,34 +197,28 @@ function setupLanguageSwitcher() {
   });
 }
 
-function setupPersonaSwitcher() {
-  const select = document.getElementById("global-user-select");
+function setupGradeSelector() {
+  const select = document.getElementById("dash-grade-select");
+  const nameEl = document.getElementById("dash-user-name");
+  const badge = document.getElementById("session-user-badge");
+
+  if (nameEl) nameEl.textContent = window.appState.currentUser.full_name;
+  if (badge) badge.textContent = `👤 ${window.appState.currentUser.full_name}`;
+
   if (!select) return;
+  select.value = window.appState.currentGrade;
 
-  select.addEventListener("change", (e) => {
-    const val = e.target.value;
-    if (val === "arjun") {
-      window.appState.currentUser = { id: 1, full_name: "Arjun Rao", role: "student", grade: "Class 10" };
-    } else if (val === "ananya") {
-      window.appState.currentUser = { id: 2, full_name: "Ananya Shenoy", role: "student", grade: "Class 9" };
-    } else if (val === "pooja") {
-      window.appState.currentUser = { id: 3, full_name: "Mrs. Pooja", role: "teacher", grade: "Faculty" };
-      window.navigateTo("teacher");
-    } else if (val === "admin") {
-      window.appState.currentUser = { id: 4, full_name: "Administrator", role: "admin", grade: "Coordinator" };
-      window.navigateTo("admin");
-      if (window.loadAdminDashboard) window.loadAdminDashboard();
+  select.addEventListener("change", async (e) => {
+    window.appState.currentGrade = e.target.value;
+    window.appState.currentUser.grade = `Class ${e.target.value}`;
+    await loadDashboardSubjects();
+    await loadTopicLearningSidebar();
+    if (window.appState.currentTopicSlug) {
+      await loadTopicContent(window.appState.currentTopicSlug);
     }
-
-
-    // Refresh greeting and stats
-    const nameEl = document.getElementById("dash-user-name");
-    if (nameEl) nameEl.textContent = window.appState.currentUser.full_name;
-
-    if (window.progressTracker) {
-      window.progressTracker.loadUserProgress();
-      window.progressTracker.loadStudyPlan();
-    }
+    if (window.quizEngine) await window.quizEngine.loadQuizTopics();
+    if (window.progressTracker) await window.progressTracker.loadUserProgress();
+    window.navigateTo("learn");
   });
 }
 
@@ -233,7 +233,7 @@ async function setupSearchAutocomplete() {
   if (!searchInput) return;
 
   try {
-    const res = await fetch("/api/topics");
+    const res = await fetch(`/api/topics?grade=${window.appState.currentGrade}`);
     const data = await res.json();
     if (data.success) {
       window.appState.allTopics = data.topics;
@@ -277,7 +277,7 @@ async function setupSearchAutocomplete() {
 // ==========================================
 async function loadDashboardSubjects() {
   try {
-    const res = await fetch("/api/subjects");
+    const res = await fetch(`/api/subjects?grade=${window.appState.currentGrade}`);
     const data = await res.json();
     if (!data.success) return;
 
@@ -305,15 +305,18 @@ async function loadDashboardSubjects() {
     `).join("");
 
     // Load featured textbooks row on dashboard
-    loadDashboardTextbooks();
+    await loadDashboardTextbooks();
   } catch (err) {
     console.error("Error loading subjects:", err);
   }
 }
 
-window.filterBySubject = function(subjectId) {
+window.filterBySubject = async function(subjectId) {
   window.navigateTo("learn");
-  loadTopicLearningSidebar(subjectId);
+  await loadTopicLearningSidebar(subjectId);
+  if (window.appState.currentTopicSlug) {
+    await loadTopicContent(window.appState.currentTopicSlug);
+  }
 };
 
 // ==========================================
@@ -324,10 +327,16 @@ async function loadTopicLearningSidebar(subjectId = null) {
   if (!sidebar) return;
 
   try {
-    const url = subjectId ? `/api/topics?subject_id=${subjectId}` : "/api/topics";
+    const params = new URLSearchParams({ grade: window.appState.currentGrade });
+    if (subjectId) params.set("subject_id", subjectId);
+    const url = `/api/topics?${params}`;
     const res = await fetch(url);
     const data = await res.json();
     if (!data.success) return;
+
+    if (!data.topics.some(t => t.slug === window.appState.currentTopicSlug)) {
+      window.appState.currentTopicSlug = data.topics.length ? data.topics[0].slug : null;
+    }
 
     sidebar.innerHTML = `
       <div style="font-size:0.8rem; text-transform:uppercase; font-weight:700; color:var(--text-muted); margin-bottom:0.5rem; padding:0 0.5rem;">
@@ -566,8 +575,7 @@ window.submitTeachBack = async function(topicSlug) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         topic_slug: topicSlug,
-        explanation: text,
-        user_id: window.appState.currentUser.id
+        explanation: text
       })
     });
     const data = await res.json();
@@ -1022,7 +1030,7 @@ async function loadRelatedTextbookReference(slug) {
   if (!container) return;
 
   try {
-    const res = await fetch(`/api/textbooks/related/${slug}`);
+    const res = await fetch(`/api/textbooks/related/${slug}?class=${window.appState.currentGrade}`);
     const data = await res.json();
     if (data.success && data.related_books && data.related_books.length > 0) {
       const b = data.related_books[0];
@@ -1062,7 +1070,7 @@ async function loadDashboardTextbooks() {
   if (!container) return;
 
   try {
-    const res = await fetch("/api/textbooks?class=10");
+    const res = await fetch(`/api/textbooks?class=${window.appState.currentGrade}`);
     const data = await res.json();
     if (!data.success || !data.textbooks) return;
 
@@ -1112,7 +1120,7 @@ window.loadExamPrep = async function() {
   if (!countdownEl) return;
 
   try {
-    const res = await fetch("/api/exam-materials");
+    const res = await fetch(`/api/exam-materials?grade=${window.appState.currentGrade}`);
     const data = await res.json();
     if (!data.success) return;
 
@@ -1164,6 +1172,10 @@ window.switchExamPrepTab = function(tabName) {
 
   if (tabName === "formulas") {
     const formulaMats = mats.filter(m => m.material_type === "formula_sheet");
+    if (formulaMats.length === 0) {
+      contentArea.innerHTML = `<div class="glass-panel" style="padding:2rem; text-align:center; color:var(--text-secondary);">No formula sheets are stored for Class ${window.appState.currentGrade} yet. The exam calendar above distinguishes Class 10 SSLC and Classes 8–9 Summative Assessments.</div>`;
+      return;
+    }
     contentArea.innerHTML = formulaMats.map(fm => {
       const sec = fm.content.sections || [];
       return `
@@ -1201,6 +1213,10 @@ window.switchExamPrepTab = function(tabName) {
     }).join("");
   } else if (tabName === "mock") {
     const mockMats = mats.filter(m => m.material_type === "model_paper");
+    if (mockMats.length === 0) {
+      contentArea.innerHTML = `<div class="glass-panel" style="padding:2rem; text-align:center; color:var(--text-secondary);">No model paper is stored for Class ${window.appState.currentGrade} yet. Exam materials are filtered to the selected Karnataka DSERT school class.</div>`;
+      return;
+    }
     contentArea.innerHTML = mockMats.map(mp => {
       const qList = mp.content.questions || [];
       return `
@@ -1291,8 +1307,7 @@ window.loadBookmarks = async function() {
   container.innerHTML = `<div class="chip">Loading saved bookmarks... ⏳</div>`;
 
   try {
-    const userId = window.appState.currentUser ? window.appState.currentUser.id : 1;
-    const res = await fetch(`/api/bookmarks/${userId}`);
+    const res = await fetch("/api/bookmarks");
     const data = await res.json();
     if (!data.success) return;
 
@@ -1347,13 +1362,11 @@ window.loadBookmarks = async function() {
 };
 
 window.toggleBookmark = async function(itemType, itemId, title) {
-  const userId = window.appState.currentUser ? window.appState.currentUser.id : 1;
   try {
     const res = await fetch("/api/bookmarks/toggle", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        user_id: userId,
         item_type: itemType,
         item_id: String(itemId),
         title: title
@@ -1374,4 +1387,3 @@ window.toggleBookmark = async function(itemType, itemId, title) {
     console.error("Bookmark toggle error:", e);
   }
 };
-

@@ -41,7 +41,8 @@ class QuizEngine {
     if (!topicSelect) return;
 
     try {
-      const res = await fetch("/api/topics");
+      const grade = window.appState ? window.appState.currentGrade : "10";
+      const res = await fetch(`/api/topics?grade=${grade}`);
       const data = await res.json();
       if (data.success) {
         topicSelect.innerHTML = data.topics.map(t => `
@@ -319,13 +320,11 @@ class QuizEngine {
   }
 
   async submitConfidence(quizId, selectedOption, isCorrect, level) {
-    const activeUserId = window.appState ? window.appState.currentUser.id : 1;
     try {
       const res = await fetch("/api/confidence-record", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: activeUserId,
           quiz_id: quizId,
           selected_option: selectedOption,
           is_correct: isCorrect,
@@ -395,14 +394,11 @@ class QuizEngine {
       }
     });
 
-    const activeUserId = window.appState ? window.appState.currentUser.id : 1;
-
     try {
       const res = await fetch("/api/quiz-attempts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: activeUserId,
           topic_id: this.currentTopicId,
           score: score,
           total_questions: total
