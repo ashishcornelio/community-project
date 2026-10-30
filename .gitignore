@@ -1,6 +1,5 @@
 KSEAB_Textbooks/
 venv/
-# create a db file with name learnsphere.db
 __pycache__/
 text books/
 COMMUNITY_PROJECT(10-10-2026).pdf
