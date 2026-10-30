@@ -9,7 +9,7 @@
 
 class QuizEngine {
   constructor() {
-    this.currentTopicId = 3; // Newton's Laws default
+    this.currentTopicId = null;
     this.questions = [];
     this.currentIndex = 0;
     this.userAnswers = {};
@@ -23,7 +23,9 @@ class QuizEngine {
   async init() {
     await this.loadQuizTopics();
     this.attachEventListeners();
-    await this.startQuizForTopic(this.currentTopicId);
+    if (this.currentTopicId !== null) {
+      await this.startQuizForTopic(this.currentTopicId);
+    }
   }
 
   attachEventListeners() {
@@ -45,11 +47,27 @@ class QuizEngine {
       const res = await fetch(`/api/topics?grade=${grade}`);
       const data = await res.json();
       if (data.success) {
+        const topics = data.topics;
+        const activeTopicId = window.appState && window.appState.currentTopicData
+          ? Number(window.appState.currentTopicData.id)
+          : null;
+        const preferredTopic = topics.find(topic => Number(topic.id) === activeTopicId);
+        const previousTopic = topics.find(topic => Number(topic.id) === Number(this.currentTopicId));
+        const selectedTopic = preferredTopic || previousTopic || topics[0];
         topicSelect.innerHTML = data.topics.map(t => `
-          <option value="${t.id}" ${t.id === this.currentTopicId ? "selected" : ""}>
+          <option value="${t.id}" ${selectedTopic && Number(t.id) === Number(selectedTopic.id) ? "selected" : ""}>
             [${t.subject_name}] ${t.name}
           </option>
         `).join("");
+        const previousTopicId = this.currentTopicId;
+        this.currentTopicId = selectedTopic ? Number(selectedTopic.id) : null;
+        if (previousTopicId !== null && previousTopicId !== this.currentTopicId && this.questions.length) {
+          await this.startQuizForTopic(this.currentTopicId);
+        } else if (!selectedTopic) {
+          this.questions = [];
+          const quizArea = document.getElementById("quiz-content-area");
+          if (quizArea) quizArea.innerHTML = `<p style="text-align:center; padding:2rem; color:var(--text-secondary);">No quiz topics are available for this class.</p>`;
+        }
       }
     } catch (err) {
       console.error("Error loading quiz topics:", err);
@@ -57,13 +75,15 @@ class QuizEngine {
   }
 
   async startQuizForTopic(topicId) {
-    this.currentTopicId = topicId;
+    this.currentTopicId = Number(topicId);
     this.currentIndex = 0;
     this.userAnswers = {};
     this.activeHints = {};
     this.confidenceRatings = {};
 
     const quizArea = document.getElementById("quiz-content-area");
+    const topicSelect = document.getElementById("quiz-topic-select");
+    if (topicSelect) topicSelect.value = String(this.currentTopicId);
     if (quizArea) {
       quizArea.innerHTML = `<div style="text-align:center; padding:3rem;"><div class="chip">Loading adaptive questions... ⏳</div></div>`;
     }
@@ -75,6 +95,7 @@ class QuizEngine {
         this.questions = data.quizzes;
         this.renderCurrentQuestion();
       } else {
+        this.questions = [];
         if (quizArea) {
           quizArea.innerHTML = `
             <div style="text-align:center; padding:3rem;">
@@ -86,6 +107,10 @@ class QuizEngine {
       }
     } catch (err) {
       console.error("Failed to load questions:", err);
+      this.questions = [];
+      if (quizArea) {
+        quizArea.innerHTML = `<p style="text-align:center; padding:2rem; color:var(--danger);">Could not load this topic's quiz. Please try again.</p>`;
+      }
     }
   }
 
@@ -439,7 +464,7 @@ class QuizEngine {
           <span style="font-size:1.5rem; color:var(--text-secondary);">(${pct}%)</span>
         </div>
         <p style="color:var(--text-secondary); max-width:550px; margin:0 auto 1.75rem;">
-          ${attemptResult.recommendation || "Your performance has been analyzed by LearnSphere AI. Check your personalized study plan for tailored revision tasks."}
+          ${attemptResult.recommendation || "Your performance has been analyzed by LearnSphere AI. Review your learning gaps and retry the topic quiz to strengthen recall."}
         </p>
 
         <div style="display:flex; justify-content:center; gap:1rem; flex-wrap:wrap;">
@@ -448,9 +473,6 @@ class QuizEngine {
           </button>
           <button class="btn-secondary" onclick="window.navigateTo('progress')">
             📊 View Learning Gaps
-          </button>
-          <button class="btn-secondary" onclick="window.navigateTo('study-plan')">
-            📅 Open Study Plan
           </button>
         </div>
       </div>

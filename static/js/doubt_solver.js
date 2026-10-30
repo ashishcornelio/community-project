@@ -13,7 +13,7 @@ class DoubtSolver {
     this.initSpeechRecognition();
   }
 
-  init() {
+  async init() {
     this.messagesContainer = document.getElementById("chat-messages");
     this.chatInput = document.getElementById("chat-input");
     this.classSelect = document.getElementById("doubt-class-select");
@@ -25,6 +25,7 @@ class DoubtSolver {
       const match = String(window.appState.currentUser.grade || "").match(/(8|9|10)/);
       if (match) this.classSelect.value = match[1];
     }
+    await this.loadConversationHistory();
 
     if (sendBtn) {
       sendBtn.addEventListener("click", () => this.handleSend());
@@ -39,17 +40,41 @@ class DoubtSolver {
     if (micBtn) {
       micBtn.addEventListener("click", () => this.toggleVoiceRecognition());
     }
+  }
 
-    // Attach click handlers to suggestion pills
-    document.querySelectorAll(".suggestion-pill").forEach(pill => {
-      pill.addEventListener("click", (e) => {
-        const text = e.target.textContent.replace(/^[💡❓🚀]\s*/, "");
-        if (this.chatInput) {
-          this.chatInput.value = text;
-          this.handleSend();
-        }
+  async loadConversationHistory() {
+    if (!this.messagesContainer) return;
+    try {
+      const response = await fetch("/api/doubt-conversations");
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Could not load saved conversations");
+      }
+
+      this.messagesContainer.innerHTML = "";
+      if (!data.conversations.length) {
+        this.showEmptyConversationState();
+        return;
+      }
+      data.conversations.forEach(conversation => {
+        this.appendMessage(conversation.question, "user");
+        this.appendMessage(conversation.answer, "ai", conversation.related_actions, {
+          topic: conversation.topic,
+          query: conversation.question
+        });
       });
-    });
+      this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+    } catch (error) {
+      console.error("Conversation history load error:", error);
+      this.messagesContainer.innerHTML = `<div class="chat-empty-state">Your saved conversations could not be loaded. Please refresh to try again.</div>`;
+    }
+  }
+
+  showEmptyConversationState() {
+    const emptyState = document.createElement("div");
+    emptyState.className = "chat-empty-state";
+    emptyState.textContent = "Your saved conversations will appear here.";
+    this.messagesContainer.appendChild(emptyState);
   }
 
   initSpeechRecognition() {
@@ -145,7 +170,10 @@ class DoubtSolver {
       this.removeTypingIndicator(typingId);
 
       if (data.success) {
-        this.appendMessage(data.response, "ai", data.related_actions);
+        this.appendMessage(data.response, "ai", data.related_actions, {
+          topic: data.topic,
+          query: text
+        });
       } else {
         this.appendMessage("I couldn't process that question right now. Please try asking again!", "ai");
       }
@@ -155,8 +183,9 @@ class DoubtSolver {
     }
   }
 
-  appendMessage(content, sender, actions = []) {
+  appendMessage(content, sender, actions = [], topicContext = {}) {
     if (!this.messagesContainer) return;
+    this.messagesContainer.querySelector(".chat-empty-state")?.remove();
 
     const bubble = document.createElement("div");
     bubble.className = `chat-bubble ${sender}`;
@@ -186,7 +215,7 @@ class DoubtSolver {
           const actBtn = document.createElement("button");
           actBtn.className = "chip";
           actBtn.textContent = `⚡ ${action}`;
-          actBtn.onclick = () => this.handleActionClick(action);
+          actBtn.onclick = () => this.handleActionClick(action, topicContext);
           actionsDiv.appendChild(actBtn);
         });
         bubble.appendChild(actionsDiv);
@@ -250,15 +279,48 @@ class DoubtSolver {
     window.speechSynthesis.speak(utterance);
   }
 
-  handleActionClick(action) {
+  findRelatedTopic(context) {
+    const topics = window.appState ? window.appState.allTopics || [] : [];
+    const stopWords = new Set(["chapter", "class", "topic", "explain", "about", "what", "which", "from"]);
+    const tokens = value => String(value || "").toLowerCase().match(/[a-z0-9]+/g)
+      ?.filter(token => token.length > 2 && !stopWords.has(token)) || [];
+    const sources = [context.topic, context.query].map(tokens).filter(source => source.length);
+
+    for (const source of sources) {
+      let bestTopic = null;
+      let bestScore = 0;
+      for (const topic of topics) {
+        const topicTokens = new Set(tokens(`${topic.name} ${topic.slug} ${topic.summary}`));
+        const score = source.filter(token => topicTokens.has(token)).length / source.length;
+        if (score > bestScore) {
+          bestTopic = topic;
+          bestScore = score;
+        }
+      }
+      if (bestScore >= 0.5) return bestTopic;
+    }
+    return null;
+  }
+
+  async handleActionClick(action, topicContext = {}) {
+    const topic = this.findRelatedTopic(topicContext);
     if (action.includes("Quiz")) {
       window.navigateTo("quiz");
+      if (topic && window.quizEngine) {
+        window.quizEngine.currentTopicId = Number(topic.id);
+        const select = document.getElementById("quiz-topic-select");
+        if (select) select.value = String(topic.id);
+        window.quizEngine.startQuizForTopic(topic.id);
+      }
     } else if (action.includes("Notes")) {
       window.navigateTo("notes");
-    } else if (action.includes("Visual") || action.includes("Simulation")) {
-      window.navigateTo("visual-lab");
-    } else if (action.includes("Plan")) {
-      window.navigateTo("study-plan");
+      if (topic) {
+        if (window.loadNotesTopics) await window.loadNotesTopics(topic.slug);
+        const select = document.getElementById("notes-topic-select");
+        if (select) select.value = topic.slug;
+        const generateButton = document.getElementById("generate-notes-btn");
+        if (generateButton) generateButton.click();
+      }
     }
   }
 }

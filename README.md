@@ -1,6 +1,6 @@
 # LearnSphere AI
 
-LearnSphere is a Flask web application for Karnataka DSERT school learning in Classes 8, 9, and 10. Students can browse curriculum topics, read multi-format notes, practise quizzes, view learning progress, use study plans and bookmarks, and search local textbook PDFs for answers. Teacher and administrator accounts have additional classroom and governance views.
+LearnSphere is a Flask web application for Karnataka DSERT school learning in Classes 8, 9, and 10. Students can browse curriculum topics, read multi-format notes, practise quizzes, view learning progress and saved doubt-solver conversations, use bookmarks, and search local textbook PDFs for answers. Teacher and administrator accounts have additional classroom and governance views.
 
 ## How the application is structured
 
@@ -11,7 +11,7 @@ Browser
   templates/login.html ── sign-in and registration
   templates/index.html ── page structure and authenticated user data
   static/css/            ── layout, theme, and component styling
-  static/js/             ── navigation, API calls, quizzes, progress, and visual lab
+  static/js/             ── navigation, API calls, quizzes, progress, and notes
           │
           │ HTTP pages and JSON API requests
           ▼
@@ -51,14 +51,13 @@ The main tables are:
 | `learning_gaps` | Per-user, per-topic mastery estimate, status, and recommended next action. |
 | `flashcards` | Topic revision cards and their repetition interval. |
 | `teach_back_prompts` | Topic prompts, expected concepts, example answers, and rubrics. |
-| `study_tasks` | Per-user study-plan tasks and completion state. |
 | `textbooks` | Textbook catalogue information, PDF filename, class, subject, and availability. |
-| `exam_materials` | Class- and subject-specific exam preparation materials. |
 | `bookmarks` | Per-user saved topics, textbooks, formulas, or other learning items. |
+| `doubt_conversations` | Per-user doubt-solver questions, answers, and conversation context. |
 
-Most curriculum data is shared reference data: subjects, topics, quizzes, and textbook catalogue records. User accounts and learning activity are stored separately and reference those records using IDs. Progress, quiz history, confidence, study tasks, and bookmarks are associated with the signed-in user.
+Most curriculum data is shared reference data: subjects, topics, quizzes, and textbook catalogue records. User accounts and learning activity are stored separately and reference those records using IDs. Progress, quiz history, confidence, bookmarks, and doubt-solver conversations are associated with the signed-in user.
 
-When a student submits a quiz, the server derives the user ID from the Flask session rather than trusting a user ID supplied by the browser. The server stores the attempt, calculates a percentage, updates that student's learning-gap record for the topic, and may add a revision task when the score is below 70%. The progress screen reads these records to summarize mastery and topic gaps.
+When a student submits a quiz, the server derives the user ID from the Flask session rather than trusting a user ID supplied by the browser. The server stores the attempt, calculates a percentage, and updates that student's learning-gap record for the topic. The progress screen reads these records to summarize mastery and topic gaps, and lists the student's saved doubt-solver conversations.
 
 ### `data/textbook_index.db`: searchable PDF content
 
@@ -86,20 +85,17 @@ The main interface is served by `templates/index.html`. Its navigation switches 
 | Dashboard | Shows school subjects and topics for the selected grade. |
 | Textbooks | Filters the textbook catalogue and opens available local PDFs. |
 | Learn & Notes | Displays topic explanations, multi-format notes, prerequisites, and revision features. |
-| Exam Prep | Presents available exam materials for the selected class and subject. |
 | Adaptive Quiz | Loads topic questions, hints, mistake feedback, and confidence prompts; quiz outcomes are submitted to the server. |
-| AI Doubt Solver | Searches textbook content and shows source information with the answer. |
+| AI Doubt Solver | Searches textbook content, shows source information, and saves conversations to the signed-in user's account. |
 | Short Notes | Requests concise or structured study notes for a selected school topic. |
-| Progress & Gaps | Displays the signed-in student's quiz-based progress and topic recommendations. |
-| Visual Lab | Runs browser-side school-level math and science simulations. |
-| Study Plan | Shows and updates the signed-in student's study tasks. |
+| Progress & Gaps | Displays the signed-in student's quiz-based progress, topic recommendations, and doubt history. |
 | Bookmarks | Lists and toggles the signed-in student's saved items. |
 | Teacher View | Provides classroom-level student and quiz analytics for authorized roles. |
 | Admin | Shows administrator statistics for authorized users. |
 
-`static/js/app.js` handles navigation, selected grade, dashboard/topic data, textbooks, exam materials, notes, and bookmarks. `static/js/quiz.js` handles quiz interactions. `static/js/progress.js` handles progress and study tasks. `static/js/doubt_solver.js` handles the doubt-solver interface, and `static/js/visual_lab.js` handles simulations.
+`static/js/app.js` handles navigation, selected grade, dashboard/topic data, textbooks, notes, and bookmarks. `static/js/quiz.js` handles topic-specific quiz interactions. `static/js/progress.js` handles progress and saved doubt history. `static/js/doubt_solver.js` handles the doubt-solver interface and conversation history.
 
-The grade selector supports Classes 8, 9, and 10. Its selected class is passed to the relevant API requests so the subject, topic, textbook, quiz, and exam screens can display grade-relevant content.
+The grade selector supports Classes 8, 9, and 10. Its selected class is passed to the relevant API requests so the subject, topic, textbook, and quiz screens can display grade-relevant content.
 
 ## Run locally on Windows
 

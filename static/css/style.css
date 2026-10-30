@@ -69,6 +69,24 @@ SMVITM Bantakal | Department of AI & Data Science | Team 11
   padding: 0;
 }
 
+select {
+  color-scheme: dark;
+}
+
+select option {
+  background-color: #111827;
+  color: #f8fafc;
+}
+
+[data-theme="light"] select {
+  color-scheme: light;
+}
+
+[data-theme="light"] select option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
 body {
   font-family: var(--font-body);
   background-color: var(--bg-primary);
@@ -917,31 +935,11 @@ h1, h2, h3, h4, h5 {
   border-bottom-right-radius: 4px;
 }
 
-.chat-suggestions-bar {
-  display: flex;
-  gap: 0.5rem;
-  overflow-x: auto;
-  padding: 0.75rem 1.5rem;
-  background: rgba(17, 24, 39, 0.4);
-  border-top: 1px solid var(--border-color);
-}
-
-.suggestion-pill {
-  white-space: nowrap;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  font-size: 0.82rem;
-  padding: 0.4rem 0.85rem;
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  transition: var(--transition);
-}
-
-.suggestion-pill:hover {
-  background: rgba(99, 102, 241, 0.2);
-  border-color: var(--primary);
-  color: var(--text-primary);
+.chat-empty-state {
+  margin: auto;
+  padding: 2rem;
+  color: var(--text-muted);
+  text-align: center;
 }
 
 .chat-scope-bar {
@@ -974,6 +972,36 @@ h1, h2, h3, h4, h5 {
 
 .chat-scope-select:focus {
   border-color: var(--primary);
+}
+
+.progress-doubts-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.progress-doubt-card {
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-glass);
+}
+
+.progress-doubt-card summary {
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+.progress-doubt-card summary span {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.progress-doubt-answer {
+  margin-top: 0.75rem;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
 }
 
 .chat-scope-hint {
@@ -1273,97 +1301,6 @@ h1, h2, h3, h4, h5 {
 }
 
 /* ====================================================
-   8. STUDY PLAN STYLES
-   ==================================================== */
-.study-tasks-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-}
-
-.study-task-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1.1rem 1.4rem;
-  border-radius: var(--radius-md);
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  transition: var(--transition);
-}
-
-.study-task-item:hover {
-  background: var(--bg-card-hover);
-  border-color: rgba(99, 102, 241, 0.3);
-}
-
-.study-task-item.completed {
-  opacity: 0.65;
-  background: rgba(16, 185, 129, 0.05);
-}
-
-.study-task-item.completed .task-title {
-  text-decoration: line-through;
-  color: var(--text-muted);
-}
-
-.task-left {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.task-checkbox {
-  width: 22px;
-  height: 22px;
-  cursor: pointer;
-  accent-color: var(--primary);
-}
-
-/* ====================================================
-   9. INTERACTIVE VISUAL LAB STYLES
-   ==================================================== */
-.visual-lab-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.75rem;
-}
-
-.sim-card {
-  padding: 1.75rem;
-  border-radius: var(--radius-lg);
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.sim-canvas {
-  width: 100%;
-  height: 280px;
-  background: #0f172a;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-}
-
-.slider-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.slider-label {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.88rem;
-  font-weight: 600;
-}
-
-.sim-slider {
-  width: 100%;
-  accent-color: var(--primary);
-}
-
-/* ====================================================
    10. CAREER GUIDANCE & TEACHER PORTAL STYLES
    ==================================================== */
 .career-cards-grid {
@@ -1408,7 +1345,7 @@ h1, h2, h3, h4, h5 {
     flex-wrap: wrap;
     justify-content: center;
   }
-  .dash-header-grid, .learn-layout, .progress-grid, .visual-lab-grid, .notes-container {
+  .dash-header-grid, .learn-layout, .progress-grid, .notes-container {
     grid-template-columns: 1fr;
   }
   .metrics-row {
@@ -1836,4 +1773,3 @@ h1, h2, h3, h4, h5 {
   border: 1px solid var(--border-color);
   margin-bottom: 1.25rem;
 }
-

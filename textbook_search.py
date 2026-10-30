@@ -895,7 +895,7 @@ class TextbookSearchEngine:
             "primary_source": citations[0],
             "response": response,
             "topic": citations[0].get("chapter_title") or query,
-            "related_actions": ["Take Practice Quiz", "Generate Short Notes", "View Visual Simulation"],
+            "related_actions": ["Take Practice Quiz", "Generate Short Notes"],
         }
 
     def stats(self):

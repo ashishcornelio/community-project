@@ -7,6 +7,7 @@ Karnataka DSERT School Curriculum | Classes 8, 9 and 10
 import functools
 import hashlib
 import hmac
+import json
 import os
 import secrets
 from flask import Flask, request, jsonify, render_template, send_from_directory, send_file, session, redirect, url_for
@@ -404,22 +405,6 @@ def submit_quiz_attempt():
         last_assessed = CURRENT_TIMESTAMP
     """, (user_id, topic_id, percentage, gap_status, action))
 
-    # If gap detected or needs revision, automatically suggest revision in study tasks
-    if percentage < 70.0:
-        cursor.execute("SELECT name, subject_id FROM topics WHERE id = ?", (topic_id,))
-        topic_info = cursor.fetchone()
-        if topic_info:
-            task_title = f"AI Revision: {topic_info['name']}"
-            cursor.execute("""
-            SELECT id FROM study_tasks 
-            WHERE user_id = ? AND title = ? AND is_completed = 0
-            """, (user_id, task_title))
-            if not cursor.fetchone():
-                cursor.execute("""
-                INSERT INTO study_tasks (user_id, title, subject_id, scheduled_day, time_slot, is_completed, task_type)
-                VALUES (?, ?, ?, 'Tomorrow', '04:30 PM - 05:00 PM', 0, 'revision')
-                """, (user_id, task_title, topic_info['subject_id']))
-
     conn.commit()
     conn.close()
 
@@ -458,7 +443,42 @@ def solve_doubt():
     result = ai_engine.solve_doubt(
         query, subject, language, grade=grade, textbook_id=textbook_id
     )
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+    INSERT INTO doubt_conversations (user_id, question, answer, topic, subject, grade, related_actions)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        current_user_id(),
+        query,
+        result.get("response", ""),
+        result.get("topic", ""),
+        subject,
+        grade or session.get("grade", ""),
+        json.dumps(result.get("related_actions", [])),
+    ))
+    result["conversation_id"] = cursor.lastrowid
+    conn.commit()
+    conn.close()
     return jsonify(result)
+
+@app.route("/api/doubt-conversations", methods=["GET"])
+def get_doubt_conversations():
+    """Returns the signed-in user's saved doubt-solver conversation history."""
+    conn = get_db()
+    rows = conn.execute("""
+    SELECT id, question, answer, topic, subject, grade, related_actions, created_at
+    FROM doubt_conversations
+    WHERE user_id = ?
+    ORDER BY id ASC
+    """, (current_user_id(),)).fetchall()
+    conn.close()
+    conversations = []
+    for row in rows:
+        conversation = dict(row)
+        conversation["related_actions"] = json.loads(conversation["related_actions"] or "[]")
+        conversations.append(conversation)
+    return jsonify({"success": True, "conversations": conversations})
 
 
 @app.route("/api/textbook-index/stats", methods=["GET"])
@@ -469,15 +489,22 @@ def get_textbook_index_stats():
 
 @app.route("/api/generate-notes", methods=["POST"])
 def generate_notes():
-    """Generates Short Notes, Bullet Points, or Mind Map (Slide 25 Mockup 7)."""
+    """Generates notes using the selected topic's curated curriculum content."""
     data = request.get_json() or {}
     topic_slug = data.get("topic_slug", "linear-equations")
     format_type = data.get("format_type", "short_notes")
     language = data.get("language", "en")
 
+    if not isinstance(topic_slug, str) or not topic_slug:
+        return jsonify({"success": False, "error": "A valid topic_slug is required"}), 400
+    if format_type not in ("short_notes", "important_points", "mind_map"):
+        return jsonify({"success": False, "error": "Unsupported notes format"}), 400
+    if language not in ("en", "kn", "hi"):
+        return jsonify({"success": False, "error": "Unsupported language"}), 400
+
     conn = get_db()
     topic = conn.execute("""
-    SELECT t.id FROM topics t
+    SELECT t.*, s.name AS subject_name FROM topics t
     JOIN subjects s ON t.subject_id = s.id
     WHERE t.slug = ? AND s.category = 'School'
     """, (topic_slug,)).fetchone()
@@ -485,7 +512,7 @@ def generate_notes():
     if not topic:
         return jsonify({"success": False, "error": "School topic not found"}), 404
 
-    result = ai_engine.generate_notes(topic_slug, format_type, language)
+    result = ai_engine.generate_notes(dict(topic), format_type, language)
     return jsonify(result)
 
 @app.route("/api/prerequisites/<int:topic_id>", methods=["GET"])
@@ -665,8 +692,6 @@ def get_admin_stats():
     total_confidence = cursor.fetchone()[0]
     cursor.execute("SELECT COUNT(*) FROM textbooks WHERE class_num BETWEEN 8 AND 10")
     total_textbooks = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM exam_materials WHERE grade_level IN ('Class 8', 'Class 9', 'Class 10')")
-    total_exam_materials = cursor.fetchone()[0]
     conn.close()
     return jsonify({
         "success": True,
@@ -676,7 +701,6 @@ def get_admin_stats():
         "total_attempts": total_attempts,
         "total_confidence_evaluations": total_confidence,
         "total_textbooks": total_textbooks,
-        "total_exam_materials": total_exam_materials,
         "database_health": "Healthy (SQLite Persistent WAL)",
         "offline_ready": True
     })
@@ -867,51 +891,6 @@ def get_related_textbooks(topic_slug):
     })
 
 # ==========================================
-# EXAMINATION PREPARATION CENTRE (SECTION 14)
-# ==========================================
-
-@app.route("/api/exam-materials", methods=["GET"])
-def get_exam_materials():
-    """Returns examination blueprints, formula sheets, mock papers, and definitions."""
-    material_type = request.args.get("type")
-    grade = request.args.get("grade") or session.get("grade", "Class 10")
-    grade_num = "".join(ch for ch in str(grade) if ch.isdigit())
-    if grade_num not in ("8", "9", "10"):
-        grade_num = "10"
-    conn = get_db()
-    cursor = conn.cursor()
-    query = "SELECT * FROM exam_materials WHERE grade_level = ?"
-    params = [f"Class {grade_num}"]
-    if material_type and material_type != "All":
-        query += " AND material_type = ?"
-        params.append(material_type)
-    query += " ORDER BY id ASC"
-    cursor.execute(query, params)
-    rows = cursor.fetchall()
-    conn.close()
-
-    materials = []
-    import json
-    for r in rows:
-        m = dict(r)
-        try:
-            m["content"] = json.loads(m["content_json"])
-        except Exception:
-            m["content"] = {}
-        del m["content_json"]
-        materials.append(m)
-
-    return jsonify({
-        "success": True,
-        "materials": materials,
-        "exam_countdowns": [
-            {"title": "Karnataka SSLC Board Examination 2026", "target_date": "2026-03-25", "tag": "Class 10 State Board"},
-            {"title": "Class 9 Summative Assessment (SA-2)", "target_date": "2026-03-12", "tag": "Class 9 Annual"},
-            {"title": "Class 8 Summative Assessment (SA-2)", "target_date": "2026-03-10", "tag": "Class 8 Annual"}
-        ]
-    })
-
-# ==========================================
 # BOOKMARKS & SAVED NOTES (SECTION 19)
 # ==========================================
 
@@ -997,6 +976,12 @@ def get_user_progress(user_id):
             "color": val["color"]
         })
 
+    doubts = conn.execute("""
+    SELECT id, question, answer, topic, subject, grade, created_at
+    FROM doubt_conversations
+    WHERE user_id = ?
+    ORDER BY id DESC
+    """, (user_id,)).fetchall()
     conn.close()
     return jsonify({
         "success": True,
@@ -1007,51 +992,9 @@ def get_user_progress(user_id):
         "critical_gaps": critical,
         "not_started": not_started,
         "subject_breakdown": subject_breakdown,
-        "topics_gaps": gaps
+        "topics_gaps": gaps,
+        "doubts": [dict(row) for row in doubts]
     })
-
-@app.route("/api/study-plan", defaults={"user_id": None}, methods=["GET"])
-@app.route("/api/study-plan/<int:user_id>", methods=["GET"])
-def get_study_plan(user_id):
-    """Returns study plan schedule grouped by day (Slide 25 Mockup 9)."""
-    user_id = current_user_id()
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("""
-    SELECT st.id, st.user_id, st.title, st.scheduled_day, st.time_slot, st.is_completed, st.task_type,
-           s.name as subject_name, s.color as subject_color, s.icon as subject_icon
-    FROM study_tasks st
-    JOIN subjects s ON st.subject_id = s.id
-    WHERE st.user_id = ?
-    ORDER BY st.is_completed ASC, st.id ASC
-    """, (user_id,))
-    tasks = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return jsonify({"success": True, "tasks": tasks})
-
-@app.route("/api/study-tasks/toggle", methods=["POST"])
-def toggle_study_task():
-    """Toggles task completion status."""
-    data = request.get_json() or {}
-    task_id = data.get("task_id")
-    if not task_id:
-        return jsonify({"success": False, "error": "task_id is required"}), 400
-
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE study_tasks SET is_completed = 1 - is_completed WHERE id = ? AND user_id = ?",
-        (task_id, current_user_id()),
-    )
-    if cursor.rowcount == 0:
-        conn.close()
-        return jsonify({"success": False, "error": "Study task not found"}), 404
-    conn.commit()
-
-    cursor.execute("SELECT is_completed FROM study_tasks WHERE id = ? AND user_id = ?", (task_id, current_user_id()))
-    new_status = cursor.fetchone()["is_completed"]
-    conn.close()
-    return jsonify({"success": True, "task_id": task_id, "is_completed": bool(new_status)})
 
 @app.route("/api/teacher-analytics", methods=["GET"])
 @roles_required("teacher", "admin")
@@ -1093,60 +1036,14 @@ def get_teacher_analytics():
         "recommended_classroom_focus": "Newton's 2nd Law (F=ma) and Quadratic Equations need teacher demonstration and worked examples."
     })
 
-import socket
-
-def get_local_ips():
-    """Detect all IPv4 network addresses of this machine."""
-    ips = []
-    # 1. Connect to an external address to find default outbound interface
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.settimeout(0.5)
-        s.connect(("8.8.8.8", 80))
-        primary = s.getsockname()[0]
-        s.close()
-        if primary and not primary.startswith("127."):
-            ips.append(primary)
-    except Exception:
-        pass
-
-    # 2. Add any other interface addresses
-    try:
-        hostname = socket.gethostname()
-        for ip in socket.gethostbyname_ex(hostname)[2]:
-            if not ip.startswith("127.") and ip not in ips:
-                ips.append(ip)
-    except Exception:
-        pass
-
-    return ips or ["127.0.0.1"]
-
-@app.route("/api/network-info", methods=["GET"])
-def get_network_info():
-    """Returns local network IP addresses for hosting and LAN sharing."""
-    ips = get_local_ips()
-    return jsonify({
-        "success": True,
-        "primary_ip": ips[0] if ips else "127.0.0.1",
-        "all_ips": ips,
-        "port": 5000,
-        "urls": [f"http://{ip}:5000" for ip in ips] + ["http://localhost:5000"]
-    })
-
 if __name__ == "__main__":
     init_db()
-    detected_ips = get_local_ips()
-    primary_ip = detected_ips[0] if detected_ips else "127.0.0.1"
 
     print("=" * 70)
     print(">> LearnSphere AI - Personalized Learning Support System")
     print("   Karnataka DSERT School Curriculum | Classes 8, 9 and 10")
     print("=" * 70)
     print(f">> Local Computer Access:       http://localhost:5000")
-    print(f">> Mobile / LAN Network Access: http://{primary_ip}:5000")
-    if len(detected_ips) > 1:
-        for extra_ip in detected_ips[1:]:
-            print(f">> Alternate Network URL:       http://{extra_ip}:5000")
     print("=" * 70)
     print(">> Host: 0.0.0.0 (Accepts connections from any device on your Wi-Fi)")
     print("=" * 70)

@@ -52,20 +52,12 @@ window.navigateTo = function(viewName) {
   }
 
   // View-specific trigger hooks
-  if (viewName === "visual-lab" && window.visualLab) {
-    setTimeout(() => {
-      window.visualLab.drawGraph();
-    }, 100);
-  } else if (viewName === "progress" && window.progressTracker) {
+  if (viewName === "progress" && window.progressTracker) {
     window.progressTracker.loadUserProgress();
-  } else if (viewName === "study-plan" && window.progressTracker) {
-    window.progressTracker.loadStudyPlan();
   } else if (viewName === "admin" && window.loadAdminDashboard) {
     window.loadAdminDashboard();
   } else if (viewName === "textbooks" && window.loadTextbooks) {
     window.loadTextbooks();
-  } else if (viewName === "exam-prep" && window.loadExamPrep) {
-    window.loadExamPrep();
   } else if (viewName === "bookmarks" && window.loadBookmarks) {
     window.loadBookmarks();
   }
@@ -93,16 +85,13 @@ window.startRevisionForTopic = function(topicId) {
 document.addEventListener("DOMContentLoaded", async () => {
   // Initialize Components
   setupThemeToggle();
-  setupLanguageSwitcher();
   setupGradeSelector();
   setupSearchAutocomplete();
   setupNotesGenerator();
-  setupNetworkInfoBadge();
 
   // Initialize Sub-Engines
-  if (window.doubtSolver) window.doubtSolver.init();
+  if (window.doubtSolver) await window.doubtSolver.init();
   if (window.quizEngine) await window.quizEngine.init();
-  if (window.visualLab) window.visualLab.init();
   if (window.progressTracker) await window.progressTracker.init();
 
   // Load Initial Data
@@ -128,41 +117,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 // ==========================================
-// NETWORK & LAN SHARING BADGE
-// ==========================================
-async function setupNetworkInfoBadge() {
-  const badge = document.getElementById("lan-share-badge");
-  if (!badge) return;
-
-  try {
-    const res = await fetch("/api/network-info");
-    const data = await res.json();
-    if (data.success && data.primary_ip) {
-      const lanUrl = `http://${data.primary_ip}:${data.port}`;
-      badge.textContent = `🌐 LAN: ${data.primary_ip}:${data.port}`;
-      badge.title = `Hosted on local IP! Click to copy: ${lanUrl}`;
-      badge.style.display = "inline-flex";
-
-      badge.onclick = () => {
-        navigator.clipboard.writeText(lanUrl);
-        const orig = badge.textContent;
-        badge.textContent = "✅ Copied URL!";
-        badge.style.borderColor = "var(--secondary)";
-        badge.style.color = "#34d399";
-        setTimeout(() => {
-          badge.textContent = orig;
-          badge.style.borderColor = "var(--primary)";
-          badge.style.color = "#c7d2fe";
-        }, 2200);
-      };
-    }
-  } catch (err) {
-    console.warn("Could not fetch network info:", err);
-  }
-}
-
-// ==========================================
-// THEME & LANGUAGE CONTROLLERS
+// THEME CONTROLLER
 // ==========================================
 function setupThemeToggle() {
   const btn = document.getElementById("theme-toggle-btn");
@@ -179,21 +134,6 @@ function setupThemeToggle() {
     document.documentElement.setAttribute("data-theme", next);
     localStorage.setItem("learnsphere_theme", next);
     btn.textContent = next === "dark" ? "☀️" : "🌙";
-  });
-}
-
-function setupLanguageSwitcher() {
-  const select = document.getElementById("global-lang-select");
-  if (!select) return;
-
-  select.addEventListener("change", (e) => {
-    const lang = e.target.value;
-    window.appState.currentLanguage = lang;
-    
-    // Refresh topic view if active
-    if (window.appState.currentTopicSlug) {
-      loadTopicContent(window.appState.currentTopicSlug);
-    }
   });
 }
 
@@ -216,6 +156,7 @@ function setupGradeSelector() {
     if (window.appState.currentTopicSlug) {
       await loadTopicContent(window.appState.currentTopicSlug);
     }
+    await loadNotesTopics(window.appState.currentTopicSlug);
     if (window.quizEngine) await window.quizEngine.loadQuizTopics();
     if (window.progressTracker) await window.progressTracker.loadUserProgress();
     window.navigateTo("learn");
@@ -280,7 +221,6 @@ async function loadDashboardSubjects() {
     const res = await fetch(`/api/subjects?grade=${window.appState.currentGrade}`);
     const data = await res.json();
     if (!data.success) return;
-
     const grid = document.getElementById("dash-subjects-grid");
     if (!grid) return;
 
@@ -333,6 +273,7 @@ async function loadTopicLearningSidebar(subjectId = null) {
     const res = await fetch(url);
     const data = await res.json();
     if (!data.success) return;
+    window.appState.allTopics = data.topics;
 
     if (!data.topics.some(t => t.slug === window.appState.currentTopicSlug)) {
       window.appState.currentTopicSlug = data.topics.length ? data.topics[0].slug : null;
@@ -419,8 +360,9 @@ window.loadTopicContent = async function(slug) {
     }
 
     if (notesBtn) {
-      notesBtn.onclick = () => {
+      notesBtn.onclick = async () => {
         window.navigateTo("notes");
+        await loadNotesTopics(topic.slug);
         const select = document.getElementById("notes-topic-select");
         if (select) select.value = topic.slug;
         triggerNotesGeneration();
@@ -706,7 +648,36 @@ function setupNotesGenerator() {
   if (genBtn) {
     genBtn.addEventListener("click", () => triggerNotesGeneration());
   }
+  loadNotesTopics();
 }
+
+async function loadNotesTopics(preferredSlug = null) {
+  const topicSelect = document.getElementById("notes-topic-select");
+  if (!topicSelect) return;
+
+  try {
+    const grade = window.appState ? window.appState.currentGrade : "10";
+    const res = await fetch(`/api/topics?grade=${grade}`);
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Could not load curriculum topics");
+    }
+
+    const currentSlug = preferredSlug
+      || (window.appState.currentTopicData && window.appState.currentTopicData.slug)
+      || topicSelect.value
+      || window.appState.currentTopicSlug;
+    topicSelect.innerHTML = data.topics.map(topic => `
+      <option value="${topic.slug}">[${topic.subject_name}] ${topic.name}</option>
+    `).join("");
+    const selectedTopic = data.topics.find(topic => topic.slug === currentSlug) || data.topics[0];
+    if (selectedTopic) topicSelect.value = selectedTopic.slug;
+  } catch (err) {
+    console.error("Notes topic load error:", err);
+    topicSelect.innerHTML = `<option value="">Topics could not be loaded</option>`;
+  }
+}
+window.loadNotesTopics = loadNotesTopics;
 
 async function triggerNotesGeneration() {
   const topicSelect = document.getElementById("notes-topic-select");
@@ -714,11 +685,15 @@ async function triggerNotesGeneration() {
   const outputContainer = document.getElementById("notes-output-area");
 
   if (!outputContainer) return;
-  const slug = topicSelect ? topicSelect.value : "linear-equations";
+  const slug = topicSelect ? topicSelect.value : "";
   const format = formatSelect ? formatSelect.value : "short_notes";
-  const lang = window.appState.currentLanguage;
+  const lang = window.appState ? window.appState.currentLanguage : "en";
+  if (!slug) {
+    outputContainer.innerHTML = `<p style="color:var(--danger);">Choose a topic before generating notes.</p>`;
+    return;
+  }
 
-  outputContainer.innerHTML = `<div style="text-align:center; padding:3rem;"><div class="chip">Generating concise notes with AI... ⏳</div></div>`;
+  outputContainer.innerHTML = `<div style="text-align:center; padding:3rem;"><div class="chip">Preparing notes for this topic... ⏳</div></div>`;
 
   try {
     const res = await fetch("/api/generate-notes", {
@@ -728,8 +703,8 @@ async function triggerNotesGeneration() {
     });
 
     const data = await res.json();
-    if (!data.success) {
-      outputContainer.innerHTML = `<p style="color:var(--danger);">Failed to generate notes. Please retry.</p>`;
+    if (!res.ok || !data.success) {
+      outputContainer.innerHTML = `<p style="color:var(--danger);">${data.error || "Failed to generate notes. Please retry."}</p>`;
       return;
     }
 
@@ -740,6 +715,7 @@ async function triggerNotesGeneration() {
     }
   } catch (err) {
     console.error("Notes generation error:", err);
+    outputContainer.innerHTML = `<p style="color:var(--danger);">Could not generate notes. Check your connection and try again.</p>`;
   }
 }
 
@@ -748,7 +724,7 @@ function renderTextNotes(data, container) {
     <div class="glass-panel" style="padding:2rem; position:relative;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; border-bottom:1px solid var(--border-color); padding-bottom:1rem;">
         <div>
-          <span class="chip" style="font-size:0.75rem; margin-bottom:0.4rem;">High-Yield Revision Notes</span>
+          <span class="chip" style="font-size:0.75rem; margin-bottom:0.4rem;">${data.subject} • ${data.grade_level}</span>
           <h3 style="font-size:1.6rem;">${data.title}</h3>
         </div>
         <div style="display:flex; gap:0.5rem;">
@@ -766,10 +742,13 @@ function renderTextNotes(data, container) {
 }
 
 function renderMindMapSVG(mindMapData, container) {
+  const escapeSvg = value => String(value || "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[char]);
   container.innerHTML = `
     <div class="glass-panel" style="padding:1.5rem;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-        <h3 style="font-size:1.4rem;">🧠 Interactive Concept Tree: ${mindMapData.name}</h3>
+        <h3 style="font-size:1.4rem;">🧠 Interactive Concept Tree: ${escapeSvg(mindMapData.name)}</h3>
         <span class="chip">SVG Visual Graph</span>
       </div>
       <div class="mind-map-svg-wrap">
@@ -788,7 +767,7 @@ function renderMindMapSVG(mindMapData, container) {
           <!-- Central Core Node -->
           <circle cx="160" cy="225" r="55" fill="url(#rootGrad)" filter="drop-shadow(0 0 12px rgba(99,102,241,0.5))"/>
           <text x="160" y="222" fill="#fff" font-family="Outfit" font-size="14" font-weight="700" text-anchor="middle" dominant-baseline="middle">
-            ${mindMapData.name}
+            ${escapeSvg(mindMapData.name)}
           </text>
 
           <!-- Branches -->
@@ -802,7 +781,7 @@ function renderMindMapSVG(mindMapData, container) {
               <!-- Branch Node -->
               <rect x="${bX - 110}" y="${bY - 22}" width="220" height="44" rx="10" fill="rgba(30, 41, 59, 0.9)" stroke="#6366f1" stroke-width="1.5"/>
               <text x="${bX}" y="${bY + 5}" fill="#f8fafc" font-family="Plus Jakarta Sans" font-size="12" font-weight="700" text-anchor="middle">
-                ${branch.name}
+                ${escapeSvg(branch.name)}
               </text>
 
               <!-- Leaf Children -->
@@ -813,7 +792,7 @@ function renderMindMapSVG(mindMapData, container) {
                   <line x1="${bX + 110}" y1="${bY}" x2="${cX}" y2="${cY}" stroke="#10b981" stroke-width="1.5" stroke-dasharray="3,3" opacity="0.6"/>
                   <rect x="${cX}" y="${cY - 12}" width="145" height="24" rx="6" fill="rgba(16, 185, 129, 0.15)" stroke="#10b981" stroke-width="1"/>
                   <text x="${cX + 72}" y="${cY + 4}" fill="#a7f3d0" font-family="Plus Jakarta Sans" font-size="10.5" font-weight="600" text-anchor="middle">
-                    ${child.name}
+                    ${escapeSvg(child.name)}
                   </text>
                 `;
               }).join("") : ""}
@@ -1111,193 +1090,6 @@ async function loadDashboardTextbooks() {
 }
 
 // ==========================================
-// 14. EXAMINATION PREPARATION CENTRE (SECTION 14)
-// ==========================================
-window.examMaterialsData = null;
-
-window.loadExamPrep = async function() {
-  const countdownEl = document.getElementById("exam-countdown-container");
-  if (!countdownEl) return;
-
-  try {
-    const res = await fetch(`/api/exam-materials?grade=${window.appState.currentGrade}`);
-    const data = await res.json();
-    if (!data.success) return;
-
-    window.examMaterialsData = data;
-
-    // Render countdown cards
-    if (data.exam_countdowns) {
-      countdownEl.innerHTML = data.exam_countdowns.map(cd => {
-        const target = new Date(cd.target_date);
-        const today = new Date();
-        const diffDays = Math.max(0, Math.ceil((target - today) / (1000 * 60 * 60 * 24)));
-
-        return `
-          <div class="exam-countdown-card glass-panel">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
-              <span class="chip" style="font-size:0.72rem; border-color:var(--accent); color:#fbbf24;">${cd.tag}</span>
-              <span style="font-size:0.8rem; color:var(--text-muted);">${cd.target_date}</span>
-            </div>
-            <h4 style="font-size:1.1rem; line-height:1.4; margin-bottom:0.75rem;">${cd.title}</h4>
-            <div style="display:flex; align-items:baseline; gap:0.5rem;">
-              <span style="font-size:2.2rem; font-weight:800; color:var(--primary); font-family:var(--font-heading);">${diffDays}</span>
-              <span style="color:var(--text-secondary); font-size:0.88rem;">Days Remaining Until Final Exam</span>
-            </div>
-          </div>
-        `;
-      }).join("");
-    }
-
-    // Default to Formulas Tab
-    window.switchExamPrepTab("formulas");
-  } catch (e) {
-    console.error("Exam materials load error:", e);
-  }
-};
-
-window.switchExamPrepTab = function(tabName) {
-  const contentArea = document.getElementById("exam-prep-content-area");
-  if (!contentArea || !window.examMaterialsData) return;
-
-  const btnFormulas = document.getElementById("tab-exam-formulas");
-  const btnMock = document.getElementById("tab-exam-mock");
-  const btnDefs = document.getElementById("tab-exam-definitions");
-
-  if (btnFormulas) btnFormulas.classList.toggle("active", tabName === "formulas");
-  if (btnMock) btnMock.classList.toggle("active", tabName === "mock");
-  if (btnDefs) btnDefs.classList.toggle("active", tabName === "definitions");
-
-  const mats = window.examMaterialsData.materials || [];
-
-  if (tabName === "formulas") {
-    const formulaMats = mats.filter(m => m.material_type === "formula_sheet");
-    if (formulaMats.length === 0) {
-      contentArea.innerHTML = `<div class="glass-panel" style="padding:2rem; text-align:center; color:var(--text-secondary);">No formula sheets are stored for Class ${window.appState.currentGrade} yet. The exam calendar above distinguishes Class 10 SSLC and Classes 8–9 Summative Assessments.</div>`;
-      return;
-    }
-    contentArea.innerHTML = formulaMats.map(fm => {
-      const sec = fm.content.sections || [];
-      return `
-        <div class="formula-section-card glass-panel">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
-            <div>
-              <span class="chip" style="font-size:0.75rem; border-color:var(--primary); color:#a5b4fc;">${fm.grade_level} • ${fm.subject}</span>
-              <h3 style="font-size:1.35rem; margin-top:0.35rem;">${fm.title}</h3>
-              <p style="color:var(--text-secondary); font-size:0.9rem;">${fm.content.description || ""}</p>
-            </div>
-            <button class="chip" style="cursor:pointer;" onclick="window.toggleBookmark('formula', '${fm.id}', '${fm.title.replace(/'/g, "\\'")}')">
-              ⭐ Bookmark Formula Blueprint
-            </button>
-          </div>
-
-          <div>
-            ${sec.map(s => `
-              <div style="margin-top:1.5rem;">
-                <h4 style="color:#fbbf24; font-size:1.1rem; margin-bottom:0.75rem; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:0.4rem;">
-                  📌 ${s.topic}
-                </h4>
-                <div>
-                  ${s.rules.map(r => `
-                    <div class="formula-row">
-                      <div class="formula-math">${r.formula}</div>
-                      <div style="color:var(--text-primary); font-size:0.95rem; line-height:1.5;">${r.interpretation}</div>
-                    </div>
-                  `).join("")}
-                </div>
-              </div>
-            `).join("")}
-          </div>
-        </div>
-      `;
-    }).join("");
-  } else if (tabName === "mock") {
-    const mockMats = mats.filter(m => m.material_type === "model_paper");
-    if (mockMats.length === 0) {
-      contentArea.innerHTML = `<div class="glass-panel" style="padding:2rem; text-align:center; color:var(--text-secondary);">No model paper is stored for Class ${window.appState.currentGrade} yet. Exam materials are filtered to the selected Karnataka DSERT school class.</div>`;
-      return;
-    }
-    contentArea.innerHTML = mockMats.map(mp => {
-      const qList = mp.content.questions || [];
-      return `
-        <div class="glass-panel" style="padding:2rem; margin-bottom:2rem;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; flex-wrap:wrap; gap:0.75rem;">
-            <div>
-              <div style="display:flex; gap:0.5rem; align-items:center;">
-                <span class="chip" style="font-size:0.75rem; border-color:var(--accent); color:#fbbf24;">⏱️ ${mp.content.duration_minutes} Minutes</span>
-                <span class="chip" style="font-size:0.75rem;">Total: ${mp.content.total_marks} Marks</span>
-              </div>
-              <h3 style="font-size:1.4rem; margin-top:0.45rem;">${mp.title}</h3>
-              <p style="color:var(--text-muted); font-size:0.88rem;">${mp.content.instructions}</p>
-            </div>
-            <button class="btn-primary" onclick="alert('Mock paper test mode active! Complete questions below and verify with model solutions.')">
-              🚀 Start Timed Practice
-            </button>
-          </div>
-
-          <div style="margin-top:1.5rem;">
-            ${qList.map((q, idx) => `
-              <div class="mock-q-card">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
-                  <span style="font-weight:700; color:var(--primary);">Question ${idx + 1} (${q.marks} Mark${q.marks > 1 ? "s" : ""})</span>
-                  <span class="chip" style="font-size:0.72rem; text-transform:uppercase;">${q.type.replace("_", " ")}</span>
-                </div>
-                <p style="font-size:1.05rem; font-weight:600; line-height:1.6; margin-bottom:1rem;">${q.text}</p>
-
-                ${q.options ? `
-                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-bottom:1rem;">
-                    ${q.options.map(opt => `
-                      <button class="option-btn" onclick="this.style.borderColor='var(--primary)'; this.style.background='rgba(99,102,241,0.1)';">
-                        ${opt}
-                      </button>
-                    `).join("")}
-                  </div>
-                ` : ""}
-
-                <details style="background:rgba(255,255,255,0.02); border:1px dashed var(--border-color); border-radius:var(--radius-sm); padding:0.85rem 1.25rem; margin-top:0.75rem; cursor:pointer;">
-                  <summary style="font-size:0.88rem; font-weight:700; color:#34d399;">
-                    ✓ View Official Step-by-Step Model Answer & Marking Scheme
-                  </summary>
-                  <div style="margin-top:0.85rem; font-size:0.95rem; line-height:1.7; color:var(--text-primary); border-top:1px solid rgba(255,255,255,0.06); padding-top:0.75rem;">
-                    ${q.model_answer || q.explanation || "Correct answer: " + q.correct_option}
-                  </div>
-                </details>
-              </div>
-            `).join("")}
-          </div>
-        </div>
-      `;
-    }).join("");
-  } else if (tabName === "definitions") {
-    const defMat = mats.find(m => m.material_type === "high_yield_revision");
-    if (!defMat) {
-      contentArea.innerHTML = `<p>No definitions available.</p>`;
-      return;
-    }
-    const items = defMat.content.items || [];
-    contentArea.innerHTML = `
-      <div class="glass-panel" style="padding:2rem;">
-        <h3 style="font-size:1.4rem; margin-bottom:0.5rem;">${defMat.title}</h3>
-        <p style="color:var(--text-secondary); font-size:0.92rem; margin-bottom:1.5rem;">${defMat.content.description}</p>
-
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:1.25rem;">
-          ${items.map(it => `
-            <div style="padding:1.25rem; border-radius:var(--radius-md); background:rgba(255,255,255,0.02); border:1px solid var(--border-color);">
-              <div style="font-size:1.15rem; font-weight:700; color:#a5b4fc; margin-bottom:0.45rem;">
-                📌 ${it.term}
-              </div>
-              <p style="font-size:0.95rem; line-height:1.6; color:var(--text-primary);">
-                ${it.definition}
-              </p>
-            </div>
-          `).join("")}
-        </div>
-      </div>
-    `;
-  }
-};
-
-// ==========================================
 // 15. BOOKMARKS & SAVED MATERIALS (SECTION 19)
 // ==========================================
 window.loadBookmarks = async function() {
@@ -1345,7 +1137,7 @@ window.loadBookmarks = async function() {
               <h4 style="font-size:1.05rem; line-height:1.5; margin-bottom:1rem;">${b.title}</h4>
             </div>
             <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border-color); padding-top:0.75rem;">
-              <button class="btn-primary" style="font-size:0.8rem; padding:0.4rem 0.85rem;" onclick="window.navigateTo('${b.item_type === "textbook" ? "textbooks" : (b.item_type === "formula" ? "exam-prep" : "learn")}')">
+              <button class="btn-primary" style="font-size:0.8rem; padding:0.4rem 0.85rem;" onclick="window.navigateTo('${b.item_type === "textbook" ? "textbooks" : "learn"}')">
                 Open Resource →
               </button>
               <button class="btn-secondary" style="font-size:0.8rem; padding:0.4rem 0.65rem;" onclick="window.toggleBookmark('${b.item_type}', '${b.item_id}', '${b.title.replace(/'/g, "\\'")}')">

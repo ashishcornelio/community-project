@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LearnSphere AI – Personalized Learning for Classes 8, 9 & 10</title>
-  <meta name="description" content="AI-powered personalized learning support for Karnataka DSERT high school students in Classes 8, 9 and 10. Simple explanations, multilingual support (English, Kannada, Hindi), practice quizzes, learning gap detection, and visual simulations.">
+  <meta name="description" content="AI-powered personalized learning support for Karnataka DSERT high school students in Classes 8, 9 and 10. Simple explanations, multilingual support (English, Kannada, Hindi), practice quizzes, learning gap detection, and topic-specific short notes.">
   <link rel="stylesheet" href="/static/css/style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>">
 </head>
@@ -28,13 +28,10 @@
       <button class="nav-tab-btn" data-view="dashboard">📊 Dashboard</button>
       <button class="nav-tab-btn" data-view="textbooks">📚 Textbooks (86)</button>
       <button class="nav-tab-btn" data-view="learn">📖 Learn & Notes</button>
-      <button class="nav-tab-btn" data-view="exam-prep">📝 Exam Prep</button>
       <button class="nav-tab-btn" data-view="quiz">🎯 Adaptive Quiz</button>
       <button class="nav-tab-btn" data-view="doubt-solver">🤖 AI Doubt Solver</button>
       <button class="nav-tab-btn" data-view="notes">📝 Short Notes</button>
       <button class="nav-tab-btn" data-view="progress">📈 Progress & Gaps</button>
-      <button class="nav-tab-btn" data-view="visual-lab">🔬 Visual Lab</button>
-      <button class="nav-tab-btn" data-view="study-plan">📅 Study Plan</button>
       <button class="nav-tab-btn" data-view="bookmarks">⭐ Bookmarks</button>
       {% if current_user.role in ('teacher', 'admin') %}
       <button class="nav-tab-btn" data-view="teacher">👩‍🏫 Teacher View</button>
@@ -46,18 +43,6 @@
 
     <!-- Header Controls -->
     <div class="header-controls">
-      <!-- LAN Share Badge -->
-      <span id="lan-share-badge" class="chip" style="cursor:pointer; font-size:0.78rem; border-color:var(--primary); color:#c7d2fe; display:none;" title="Click to copy Network URL">
-        🌐 LAN: Loading...
-      </span>
-
-      <!-- Language Selector -->
-      <select id="global-lang-select" class="lang-select" title="Switch Language">
-        <option value="en">English (ENG)</option>
-        <option value="kn">ಕನ್ನಡ (Kannada)</option>
-        <option value="hi">हिन्दी (Hindi)</option>
-      </select>
-
       <!-- Signed-in user -->
       <span id="session-user-badge" class="chip" style="font-size:0.78rem; border-color:var(--secondary); color:#a7f3d0;">
         👤 {{ current_user.full_name if current_user else 'Student' }}
@@ -104,12 +89,9 @@
         <div class="feature-chips">
           <span class="chip" onclick="window.navigateTo('textbooks')">📚 86 Karnataka Textbooks</span>
           <span class="chip" onclick="window.navigateTo('learn')">⚡ AI Explanations</span>
-          <span class="chip" onclick="window.navigateTo('exam-prep')">📝 SSLC Exam Prep</span>
           <span class="chip" onclick="window.navigateTo('quiz')">🎯 Practice Questions</span>
           <span class="chip" onclick="window.navigateTo('notes')">📝 Short Notes</span>
-          <span class="chip" onclick="document.getElementById('global-lang-select').value='kn'; window.appState.currentLanguage='kn'; window.navigateTo('learn');">🗣️ Kannada & Hindi Support</span>
           <span class="chip" onclick="window.navigateTo('progress')">📊 Progress Tracking</span>
-          <span class="chip" onclick="window.navigateTo('visual-lab')">🔬 Interactive Simulations</span>
         </div>
 
         <div style="margin-top:2.2rem; display:flex; justify-content:center; gap:1rem;">
@@ -174,15 +156,6 @@
         </div>
 
         <div class="feature-card glass-panel">
-          <div class="feature-card-icon">🔬</div>
-          <h3>Interactive Visual Lab</h3>
-          <p style="color:var(--text-secondary); font-size:0.92rem;">
-            Hands-on physics and mathematics simulations: live linear equation graph plotters and Newton's balanced vs unbalanced force vector diagrams.
-          </p>
-          <a href="#visual-lab" onclick="window.navigateTo('visual-lab')" style="color:var(--primary); font-weight:700; font-size:0.88rem; text-decoration:none;">Launch Lab →</a>
-        </div>
-
-        <div class="feature-card glass-panel">
           <div class="feature-card-icon">🚀</div>
           <h3>School-Syllabus Learning Support</h3>
           <p style="color:var(--text-secondary); font-size:0.92rem;">
@@ -212,7 +185,7 @@
             </span>
             <h2>Welcome back, <span id="dash-user-name" class="text-gradient">{{ current_user.full_name }}</span>!</h2>
             <p style="color:var(--text-secondary); max-width:480px;">
-              Ready to master today's lessons? Your personalized study plan and revision recommendations are updated.
+              Ready to master today's lessons? Your progress and topic recommendations are up to date.
             </p>
             <div class="welcome-meta" style="align-items:center;">
               <span class="badge-tag">🏫 {{ current_user.school }}</span>
@@ -270,13 +243,6 @@
           </div>
         </div>
 
-        <div class="metric-card glass-panel">
-          <div class="metric-icon" style="background:rgba(245,158,11,0.15); color:var(--accent);">📅</div>
-          <div>
-            <div class="metric-val" id="metric-task-count">0</div>
-            <div class="metric-lbl">Tasks in Study Plan</div>
-          </div>
-        </div>
       </div>
 
       <!-- Active Gap Alert (Slide 25 Mockup 8) -->
@@ -286,13 +252,10 @@
           <div>
             <h4 id="dash-gap-alert-title" style="color:#f87171; margin-bottom:0.2rem;">Learning Gap Detected</h4>
             <p id="dash-gap-alert-msg" style="color:var(--text-secondary); font-size:0.88rem;">
-              Your recent quiz score indicates difficulty with balanced forces. We have scheduled an interactive visual revision.
+              Your recent quiz score indicates a topic that may need review. Try its notes and practice quiz.
             </p>
           </div>
         </div>
-        <button class="btn-primary" onclick="window.navigateTo('visual-lab')" style="padding:0.5rem 1rem; font-size:0.88rem;">
-          Open Force Simulation →
-        </button>
       </div>
 
       <!-- Quick Access Shortcuts (Slide 25 Mockup 3) -->
@@ -306,10 +269,6 @@
           <span class="shortcut-icon">📚</span>
           <span>Textbooks (86)</span>
         </button>
-        <button class="shortcut-btn" onclick="window.navigateTo('exam-prep')">
-          <span class="shortcut-icon">🎯</span>
-          <span>SSLC Exam Prep</span>
-        </button>
         <button class="shortcut-btn" onclick="window.navigateTo('learn')">
           <span class="shortcut-icon">📖</span>
           <span>AI Tutor</span>
@@ -321,10 +280,6 @@
         <button class="shortcut-btn" onclick="window.navigateTo('notes')">
           <span class="shortcut-icon">📝</span>
           <span>Short Notes</span>
-        </button>
-        <button class="shortcut-btn" onclick="window.navigateTo('visual-lab')">
-          <span class="shortcut-icon">🔬</span>
-          <span>Visual Lab</span>
         </button>
       </div>
 
@@ -469,36 +424,7 @@
 
         <!-- Chat Stream -->
         <div class="chat-messages" id="chat-messages">
-          <div class="chat-bubble ai">
-            <h4 style="color:#a5b4fc; margin-bottom:0.4rem;">👋 Namaskara, Student!</h4>
-            I am your LearnSphere AI Doubt Solver. I answer <strong>only from the official Karnataka State Board textbook PDFs</strong> in your library.
-            <br><br>
-            Every answer shows the <strong>book, chapter and page number</strong> with a link to open that exact PDF page. If the answer is not in your textbooks, I will say so instead of guessing.
-          </div>
-
-          <!-- Example grounded answer with a real textbook citation -->
-          <div class="chat-bubble user">
-            Explain reflection of light.
-          </div>
-
-          <div class="chat-bubble ai">
-            <h4 style="color:#a5b4fc; margin-bottom:0.4rem;">📖 Answer found in your textbook</h4>
-            <strong>Karnataka 10th Class SCIENCE PART-2 (English Medium)</strong>
-            <br><em>Chapter 9: Light – Reflection and Refraction</em> | <strong>Page 134 (PDF page 66)</strong>
-            <br><br>
-            <em>"A highly polished surface, such as a mirror, reflects most of the light falling on it. You are already familiar with the laws of reflection of light."</em>
-            <br><br>
-            Answers are quoted from your prescribed textbook — never invented.
-          </div>
-        </div>
-
-        <!-- Quick Suggestion Pills -->
-        <div class="chat-suggestions-bar">
-          <span class="suggestion-pill">Explain reflection of light</span>
-          <span class="suggestion-pill">What are metals and non-metals?</span>
-          <span class="suggestion-pill">What is heredity?</span>
-          <span class="suggestion-pill">What is a quadratic equation?</span>
-          <span class="suggestion-pill">Explain carbon compounds</span>
+          <div class="chat-empty-state">Your saved conversations will appear here.</div>
         </div>
 
         <!-- Textbook Scope (answers are grounded in these PDFs) -->
@@ -554,11 +480,11 @@
         <!-- Inner Interactive Content Area -->
         <div id="quiz-content-area">
           <div style="font-size:0.85rem; color:var(--text-muted); font-weight:700; margin-bottom:0.5rem;" id="quiz-question-counter">
-            Question 1 of 3
+            Loading topic questions...
           </div>
 
           <h3 class="question-text" id="quiz-question-text">
-            Which of the following is an example for balanced force?
+            Choose a topic to begin its practice quiz.
           </h3>
 
           <!-- Options Container -->
@@ -596,22 +522,7 @@
               Select Topic:
             </label>
             <select id="notes-topic-select" class="lang-select" style="width:100%;">
-              <option value="linear-equations" selected>Mathematics: Linear Equations</option>
-              <option value="quadratic-equations">Mathematics: Quadratic Equations</option>
-              <option value="arithmetic-progressions">Mathematics: Arithmetic Progressions</option>
-              <option value="trigonometry">Mathematics: Trigonometry</option>
-              <option value="newtons-laws-motion">Science: Force & Laws of Motion</option>
-              <option value="photosynthesis">Science: Photosynthesis</option>
-              <option value="electricity-circuits">Science: Electricity & Circuits</option>
-              <option value="light-reflection-refraction">Science: Light & Refraction</option>
-              <option value="indian-constitution">Social Science: Indian Constitution</option>
-              <option value="advent-europeans-india">Social Science: Advent of Europeans</option>
-              <option value="active-passive-voice">English: Active & Passive Voice</option>
-              <option value="reported-speech">English: Reported Speech</option>
-              <option value="kannada-sandhigalu">Kannada: Sandhigalu</option>
-              <option value="kannada-samasagalu">Kannada: Samasagalu</option>
-              <option value="hindi-karak">Hindi: Kaarak</option>
-              <option value="hindi-samas">Hindi: Samaas</option>
+              <option value="">Loading class topics...</option>
             </select>
           </div>
 
@@ -622,7 +533,7 @@
             <select id="notes-format-select" class="lang-select" style="width:100%;">
               <option value="short_notes">📄 High-Yield Short Notes</option>
               <option value="important_points">✓ Bullet Points & Formulas</option>
-              <option value="mind_map">🧠 Visual Concept Mind Map</option>
+              <option value="mind_map">🧠 Concept Mind Map</option>
             </select>
           </div>
 
@@ -634,26 +545,8 @@
         <!-- Output Display Area -->
         <div id="notes-output-area">
           <!-- Rendered dynamically -->
-          <div class="glass-panel" style="padding:2rem;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; border-bottom:1px solid var(--border-color); padding-bottom:1rem;">
-              <div>
-                <span class="chip" style="font-size:0.75rem; margin-bottom:0.4rem;">Mathematics • Class 10 SSLC</span>
-                <h3 style="font-size:1.6rem;">Pair of Linear Equations - Short Notes</h3>
-              </div>
-              <div style="display:flex; gap:0.5rem;">
-                <button class="btn-secondary" onclick="window.print()">🖨️ Print</button>
-                <button class="btn-primary" onclick="alert('Notes copied to clipboard!')">📋 Copy</button>
-              </div>
-            </div>
-
-            <div style="font-size:0.98rem; line-height:1.7;">
-              <h4 style="color:#fbbf24; margin-bottom:0.4rem;">Key Highlights:</h4>
-              <p>• <strong>Standard Form:</strong> a₁x + b₁y + c₁ = 0 and a₂x + b₂y + c₂ = 0.</p>
-              <p>• <strong>Unique Solution:</strong> a₁/a₂ ≠ b₁/b₂ — the lines intersect at exactly one point.</p>
-              <p>• <strong>Infinitely Many Solutions:</strong> a₁/a₂ = b₁/b₂ = c₁/c₂ — the lines are coincident.</p>
-              <p>• <strong>No Solution:</strong> a₁/a₂ = b₁/b₂ ≠ c₁/c₂ — the lines are parallel.</p>
-              <p>• <strong>Methods:</strong> Graphical method, substitution method and elimination method.</p>
-            </div>
+          <div class="glass-panel" style="padding:2rem; color:var(--text-secondary);">
+            Select a topic and generate notes to see curriculum-aligned revision content here.
           </div>
         </div>
       </div>
@@ -728,9 +621,6 @@
               Topics evaluated based on quiz performance. Scores below 70% automatically trigger targeted revision recommendations.
             </p>
           </div>
-          <button class="btn-primary" onclick="window.navigateTo('study-plan')" style="font-size:0.85rem; padding:0.5rem 1rem;">
-            View Study Schedule →
-          </button>
         </div>
 
         <div style="overflow-x:auto;">
@@ -751,6 +641,21 @@
         </div>
       </div>
 
+      <div class="glass-panel" style="padding:1.75rem; margin-top:1.5rem;">
+        <div class="section-title-row">
+          <div>
+            <h3 style="font-size:1.35rem;">💬 Your Doubt-Solver Conversations</h3>
+            <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.2rem;">
+              Questions you asked and textbook answers, saved privately to your account.
+            </p>
+          </div>
+          <button class="btn-secondary" onclick="window.navigateTo('doubt-solver')">Open Doubt Solver</button>
+        </div>
+        <div id="progress-doubts-list" class="progress-doubts-list">
+          <p style="color:var(--text-secondary);">Loading your saved questions...</p>
+        </div>
+      </div>
+
       <!-- Prerequisite Graph & Learning Gap Map (Section 10) -->
       <div class="glass-panel" style="padding:1.75rem; margin-top:1.5rem;">
         <div class="section-title-row">
@@ -768,159 +673,6 @@
       </div>
     </section>
 
-
-    <!-- ====================================================
-         8. PERSONALIZED STUDY PLAN (Slide 25 Mockup 9)
-         ==================================================== -->
-    <section id="view-study-plan" class="view-section">
-      <div class="glass-panel" style="padding:2rem; max-width:860px; margin:0 auto;">
-        <div class="section-title-row">
-          <div>
-            <span class="chip" style="font-size:0.75rem; margin-bottom:0.4rem;">Adaptive Learning Schedule</span>
-            <h2 style="font-size:1.85rem;">📅 My Weekly Study Plan</h2>
-          </div>
-          <button class="btn-primary" onclick="alert('Study Plan automatically synchronized with your weak topics and revision goals.')">
-            ✨ Auto-Optimize Plan
-          </button>
-        </div>
-
-        <p style="color:var(--text-secondary); margin-bottom:1.5rem; font-size:0.92rem;">
-          Check off tasks as you complete them to increase your mastery score and maintain your study streak.
-        </p>
-
-        <div class="study-tasks-list" id="study-tasks-container">
-          <!-- Populated dynamically -->
-        </div>
-      </div>
-    </section>
-
-    <!-- ====================================================
-         9. INTERACTIVE VISUAL LAB (Slide 25 Mockup 4 & 10)
-         ==================================================== -->
-    <section id="view-visual-lab" class="view-section">
-      <div class="section-title-row">
-        <div>
-          <h2>🔬 Interactive Visual Simulation Lab</h2>
-          <p class="subheading">
-            Directly addressing the field study finding: <em>"Diagrams, pictures, and interactive examples make Science & Math much easier to understand."</em>
-          </p>
-        </div>
-      </div>
-
-      <div class="visual-lab-grid">
-        <!-- Simulation 1: Linear Equation Graph Plotter -->
-        <div class="sim-card glass-panel">
-          <div>
-            <span class="chip" style="color:#6366f1; border-color:#6366f1; font-size:0.75rem;">Mathematics • Algebra</span>
-            <h3 style="font-size:1.25rem; margin:0.4rem 0;">Live Linear Equation Plotter (y = mx + c)</h3>
-            <p style="font-size:0.85rem; color:var(--text-secondary);">
-              Move the sliders to observe how slope (m) tilts the straight line and intercept (c) shifts it up and down!
-            </p>
-          </div>
-
-          <canvas id="graph-canvas" class="sim-canvas" width="480" height="260"></canvas>
-
-          <div id="equation-readout" style="font-family:var(--font-mono); font-size:0.88rem; background:rgba(255,255,255,0.04); padding:0.6rem 0.85rem; border-radius:8px;">
-            Equation: y = 2x - 1 | Root: x = 0.50
-          </div>
-
-          <div class="slider-group">
-            <div class="slider-label">
-              <span>Slope (m):</span>
-              <span id="slope-val" style="color:var(--primary); font-family:var(--font-mono);">2</span>
-            </div>
-            <input type="range" id="slope-slider" class="sim-slider" min="-5" max="5" step="0.5" value="2">
-          </div>
-
-          <div class="slider-group">
-            <div class="slider-label">
-              <span>Y-Intercept (c):</span>
-              <span id="intercept-val" style="color:var(--accent); font-family:var(--font-mono);">-1</span>
-            </div>
-            <input type="range" id="intercept-slider" class="sim-slider" min="-5" max="5" step="0.5" value="-1">
-          </div>
-        </div>
-
-        <!-- Simulation 2: Newton's Laws & Force Balance -->
-        <div class="sim-card glass-panel">
-          <div>
-            <span class="chip" style="color:#10b981; border-color:#10b981; font-size:0.75rem;">Physics • Mechanics</span>
-            <h3 style="font-size:1.25rem; margin:0.4rem 0;">Newton's 3rd Law & Balanced Forces</h3>
-            <p style="font-size:0.85rem; color:var(--text-secondary);">
-              Interactive force vector balance simulator. See action-reaction pairs in real-time.
-            </p>
-          </div>
-
-          <canvas id="force-canvas" class="sim-canvas" width="480" height="260"></canvas>
-
-          <div id="force-status-readout" style="font-size:0.85rem; background:rgba(255,255,255,0.04); padding:0.6rem 0.85rem; border-radius:8px;">
-            Balanced Force: Net Force = 0 N. Object remains at rest.
-          </div>
-
-          <div class="slider-group">
-            <div class="slider-label">
-              <span>Push Force (Action):</span>
-              <span id="force-val" style="color:#10b981; font-family:var(--font-mono);">20 N</span>
-            </div>
-            <input type="range" id="force-slider" class="sim-slider" min="5" max="60" step="5" value="20">
-          </div>
-
-          <div style="display:flex; gap:0.65rem;">
-            <button id="toggle-balance-btn" class="btn-secondary" style="flex:1; font-size:0.82rem; padding:0.5rem;">
-              Switch to Unbalanced Force
-            </button>
-            <button id="reset-force-btn" class="btn-secondary" style="font-size:0.82rem; padding:0.5rem 0.85rem;">
-              Reset Pos
-            </button>
-          </div>
-        </div>
-
-        <!-- Simulation 3: Photosynthesis -->
-        <div class="sim-card glass-panel">
-          <div>
-            <span class="chip" style="color:#f59e0b; border-color:#f59e0b; font-size:0.75rem;">Biology • Life Processes</span>
-            <h3 style="font-size:1.25rem; margin:0.4rem 0;">Photosynthesis: Leaf Factory</h3>
-            <p style="font-size:0.85rem; color:var(--text-secondary);">
-              Adjust sunlight, water and carbon dioxide to see how a leaf produces glucose and releases oxygen.
-            </p>
-          </div>
-
-          <canvas id="photosynthesis-canvas" class="sim-canvas" width="480" height="260"></canvas>
-
-          <div id="photosynthesis-readout" style="font-family:var(--font-mono); font-size:0.86rem; background:rgba(255,255,255,0.04); padding:0.6rem 0.85rem; border-radius:8px;">
-            6CO₂ + 6H₂O + Sunlight + Chlorophyll → C₆H₁₂O₆ + 6O₂
-          </div>
-
-          <div class="slider-group">
-            <div class="slider-label">
-              <span>Sunlight:</span>
-              <span id="sunlight-val" style="color:#f59e0b; font-family:var(--font-mono);">70%</span>
-            </div>
-            <input type="range" id="sunlight-slider" class="sim-slider" min="0" max="100" step="5" value="70">
-          </div>
-
-          <div class="slider-group">
-            <div class="slider-label">
-              <span>Water (H₂O):</span>
-              <span id="water-val" style="color:#38bdf8; font-family:var(--font-mono);">70%</span>
-            </div>
-            <input type="range" id="water-slider" class="sim-slider" min="0" max="100" step="5" value="70">
-          </div>
-
-          <div class="slider-group">
-            <div class="slider-label">
-              <span>Carbon Dioxide (CO₂):</span>
-              <span id="co2-val" style="color:#34d399; font-family:var(--font-mono);">70%</span>
-            </div>
-            <input type="range" id="co2-slider" class="sim-slider" min="0" max="100" step="5" value="70">
-          </div>
-
-          <div id="photosynthesis-status" style="font-size:0.85rem; color:var(--text-secondary);">
-            Optimal conditions. The leaf is actively making glucose.
-          </div>
-        </div>
-      </div>
-    </section>
 
     <!-- ====================================================
          11. TEACHER / ADMIN PORTAL VIEW (For Mrs. Pooja & Mrs. Sushma)
@@ -1121,34 +873,6 @@
     </section>
 
     <!-- ====================================================
-         14. EXAMINATION PREPARATION CENTRE (SECTION 14)
-         ==================================================== -->
-    <section id="view-exam-prep" class="view-section">
-      <div class="view-header">
-        <div class="hero-pill-badge">
-          <span>🎯 School Exam Blueprints</span> • <span>SSLC / SA Classes 8–10</span> • <span>Formula Master</span>
-        </div>
-        <h2 class="view-title">Examination Preparation Centre</h2>
-        <p class="view-subtitle">
-          Karnataka DSERT revision materials, SSLC practice for Class 10, Summative Assessment (SA) preparation for Classes 8 and 9, and school-syllabus formula sheets.
-        </p>
-      </div>
-
-      <!-- Countdown Timers -->
-      <div id="exam-countdown-container" class="exam-countdown-grid"></div>
-
-      <!-- Sub-Tabs Navigation -->
-      <div class="format-ribbon" style="margin-bottom:2rem;">
-        <button class="format-ribbon-btn active" id="tab-exam-formulas" onclick="window.switchExamPrepTab('formulas')">📐 Formula Sheets & Blueprints</button>
-        <button class="format-ribbon-btn" id="tab-exam-mock" onclick="window.switchExamPrepTab('mock')">⏱️ Timed Model Mock Test (45 Mins)</button>
-        <button class="format-ribbon-btn" id="tab-exam-definitions" onclick="window.switchExamPrepTab('definitions')">💡 High-Yield Definitions & Terms</button>
-      </div>
-
-      <!-- Content Area -->
-      <div id="exam-prep-content-area"></div>
-    </section>
-
-    <!-- ====================================================
          15. BOOKMARKS & SAVED MATERIALS (SECTION 19)
          ==================================================== -->
     <section id="view-bookmarks" class="view-section">
@@ -1208,7 +932,6 @@
   </script>
 
   <!-- Scripts -->
-  <script src="/static/js/visual_lab.js"></script>
   <script src="/static/js/doubt_solver.js"></script>
   <script src="/static/js/quiz.js"></script>
   <script src="/static/js/progress.js"></script>

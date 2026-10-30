@@ -157,13 +157,66 @@ class AIEngine:
         result["language"] = language
         return result
 
-    def generate_notes(self, topic_slug: str, format_type: str = "short_notes", language: str = "en") -> dict:
-        """Multi-Format Notes Generator (Section 5A)."""
-        # Basic notes dictionary
+    def generate_notes(self, topic: dict, format_type: str = "short_notes", language: str = "en") -> dict:
+        """Build notes from the selected topic's curated curriculum content."""
+        localized_explanations = {
+            "kn": topic.get("kannada_explanation"),
+            "hi": topic.get("hindi_explanation"),
+        }
+        summary = localized_explanations.get(language) or topic.get("summary") or ""
+        key_points = topic.get("pointwise_notes") or topic.get("simple_explanation") or ""
+        exam_notes = topic.get("exam_ready_notes") or ""
+        formula = topic.get("formula_box") or ""
+        example = topic.get("real_life_example") or ""
+
+        if format_type == "short_notes":
+            sections = [f"### Key idea\n{summary}", f"### Key points\n{key_points}"]
+            if formula:
+                sections.append(f"### Formula / key terms\n{formula}")
+            if example:
+                sections.append(f"### Example\n{example}")
+            if exam_notes:
+                sections.append(f"### Exam focus\n{exam_notes}")
+            content = "\n\n".join(sections)
+        elif format_type == "important_points":
+            sections = [f"### Important points\n{key_points}"]
+            if formula:
+                sections.append(f"### Formula / key terms\n{formula}")
+            if exam_notes:
+                sections.append(f"### Exam focus\n{exam_notes}")
+            content = "\n\n".join(sections)
+        else:
+            branches = [
+                {"name": "Core idea", "children": [{"name": summary[:48]}] if summary else []},
+                {
+                    "name": "Key points",
+                    "children": [
+                        {"name": re.sub(r"^[\s•*\-\d.]+", "", line)[:34]}
+                        for line in key_points.splitlines()
+                        if line.strip()
+                    ][:3],
+                },
+            ]
+            if formula:
+                branches.append({"name": "Formula / terms", "children": [{"name": formula.splitlines()[0][:34]}]})
+            if exam_notes:
+                branches.append({"name": "Exam focus", "children": [{"name": exam_notes.splitlines()[0][:34]}]})
+            return {
+                "success": True,
+                "format": format_type,
+                "title": topic["name"],
+                "subject": topic.get("subject_name", ""),
+                "grade_level": topic.get("grade_level", ""),
+                "mind_map_data": {"name": topic["name"], "children": branches},
+            }
+
         return {
             "success": True,
             "format": format_type,
-            "title": topic_slug.replace("-", " ").title()
+            "title": topic["name"],
+            "subject": topic.get("subject_name", ""),
+            "grade_level": topic.get("grade_level", ""),
+            "content": content,
         }
 
     def detect_learning_gaps(self, user_id: int, conn, grade_num: str) -> list:

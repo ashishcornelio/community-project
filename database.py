@@ -377,11 +377,29 @@ def init_db():
     );
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS doubt_conversations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        question TEXT NOT NULL,
+        answer TEXT NOT NULL,
+        topic TEXT,
+        subject TEXT,
+        grade TEXT,
+        related_actions TEXT NOT NULL DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+    """)
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_doubt_conversations_user_id
+    ON doubt_conversations (user_id, id)
+    """)
+
     conn.commit()
     migrate_schema(conn)
     seed_master_data(conn)
     seed_textbooks(conn)
-    seed_exam_materials(conn)
     conn.close()
 
     try:
@@ -664,17 +682,6 @@ def seed_master_data(conn):
     INSERT INTO teach_back_prompts (topic_id, prompt, required_concepts, model_answer, rubric_guide)
     VALUES (?, ?, ?, ?, ?)
     """, teach_back_data)
-
-    # Seed Study Tasks
-    cursor.execute("""
-    INSERT INTO study_tasks (user_id, title, subject_id, scheduled_day, time_slot, is_completed, task_type)
-    VALUES 
-    (1, 'Foundation: Revise Balance Scales in Linear Equations', ?, 'Today', '10:00 AM - 10:45 AM', 1, 'revision'),
-    (1, 'Mistake Review: Newton Forces Vector Diagnostic', ?, 'Today', '04:00 PM - 04:30 PM', 0, 'quiz'),
-    (1, 'Teach-Back Challenge: Explain Photosynthesis to a Friend', ?, 'Tomorrow', '09:00 AM - 09:30 AM', 0, 'teach_back'),
-    (1, 'Spaced Repetition: 5 Review Flashcards (Day 2 Interval)', ?, 'Tomorrow', '05:00 PM - 05:20 PM', 0, 'notes'),
-    (1, 'Exam Prep: Mock Paper on Balanced Forces (45 mins)', ?, 'This Week', '06:00 PM - 06:45 PM', 0, 'quiz')
-    """, (sub_map['MATH'], sub_map['SCI'], sub_map['SCI'], sub_map['MATH'], sub_map['SCI']))
 
     # Seed Learning Gaps
     cursor.execute("""

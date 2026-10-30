@@ -1,5 +1,5 @@
 /**
- * LearnSphere AI - School Progress, Study Plan & Classroom Analytics
+ * LearnSphere AI - School Progress & Classroom Analytics
  */
 
 class ProgressTracker {
@@ -8,7 +8,6 @@ class ProgressTracker {
 
   async init() {
     await this.loadUserProgress();
-    await this.loadStudyPlan();
     const role = window.appState && window.appState.currentUser.role;
     if (role === "teacher" || role === "admin") {
       await this.loadTeacherAnalytics();
@@ -106,6 +105,34 @@ class ProgressTracker {
         }).join("");
       }
 
+      const doubtsList = document.getElementById("progress-doubts-list");
+      if (doubtsList) {
+        const doubts = data.doubts || [];
+        doubtsList.innerHTML = "";
+        if (!doubts.length) {
+          const empty = document.createElement("p");
+          empty.style.color = "var(--text-secondary)";
+          empty.textContent = "You have not asked any questions yet.";
+          doubtsList.appendChild(empty);
+        } else {
+          doubts.forEach(doubt => {
+            const card = document.createElement("details");
+            card.className = "progress-doubt-card";
+            const summary = document.createElement("summary");
+            const question = document.createElement("strong");
+            question.textContent = doubt.question;
+            const metadata = document.createElement("span");
+            metadata.textContent = [doubt.subject, doubt.grade, doubt.created_at].filter(Boolean).join(" • ");
+            summary.append(question, metadata);
+            const answer = document.createElement("p");
+            answer.className = "progress-doubt-answer";
+            answer.textContent = doubt.answer;
+            card.append(summary, answer);
+            doubtsList.appendChild(card);
+          });
+        }
+      }
+
       // Update Prerequisite Gap Map
       const prereqContainer = document.getElementById("prereq-map-container");
       if (prereqContainer) {
@@ -144,7 +171,7 @@ class ProgressTracker {
           }
           const alertMsg = document.getElementById("dash-gap-alert-msg");
           if (alertMsg) {
-            alertMsg.innerHTML = `<strong>Attention Required:</strong> ${data.critical_gaps} learning gap(s) detected. AI has recommended targeted revision in your Study Plan.`;
+            alertMsg.innerHTML = `<strong>Attention Required:</strong> ${data.critical_gaps} learning gap(s) detected. Review the recommended topics and try their practice quizzes.`;
           }
         } else {
           gapAlertCard.style.display = "none";
@@ -154,78 +181,6 @@ class ProgressTracker {
       console.error("Error loading progress:", err);
     }
 
-  }
-
-  // ==========================================
-  // 2. PERSONALIZED STUDY PLAN
-  // ==========================================
-  async loadStudyPlan() {
-    try {
-      const res = await fetch("/api/study-plan");
-      const data = await res.json();
-      if (!data.success) return;
-
-      const container = document.getElementById("study-tasks-container");
-      const taskCount = document.getElementById("metric-task-count");
-      if (taskCount) taskCount.textContent = data.tasks.length;
-      if (!container) return;
-
-      if (data.tasks.length === 0) {
-        container.innerHTML = `<p style="color:var(--text-secondary); padding:2rem; text-align:center;">No scheduled tasks for this period.</p>`;
-        return;
-      }
-
-      container.innerHTML = data.tasks.map(t => {
-        let typeIcon = "📖";
-        if (t.task_type === "quiz") typeIcon = "🎯";
-        else if (t.task_type === "video") typeIcon = "🎥";
-        else if (t.task_type === "notes") typeIcon = "📝";
-
-        return `
-          <div class="study-task-item ${t.is_completed ? "completed" : ""}" id="task-${t.id}">
-            <div class="task-left">
-              <input type="checkbox" class="task-checkbox" ${t.is_completed ? "checked" : ""} 
-                     onchange="window.progressTracker.toggleTask(${t.id})">
-              <div>
-                <div class="task-title" style="font-weight:700; font-size:0.95rem;">
-                  ${typeIcon} ${t.title}
-                </div>
-                <div style="font-size:0.8rem; color:var(--text-muted); display:flex; gap:0.75rem; margin-top:0.25rem;">
-                  <span style="color:${t.subject_color}; font-weight:600;">${t.subject_name}</span>
-                  <span>📅 ${t.scheduled_day}</span>
-                  <span>⏰ ${t.time_slot}</span>
-                </div>
-              </div>
-            </div>
-            <div>
-              <span class="chip" style="font-size:0.78rem;">${t.task_type.toUpperCase()}</span>
-            </div>
-          </div>
-        `;
-      }).join("");
-    } catch (err) {
-      console.error("Error loading study plan:", err);
-    }
-  }
-
-  async toggleTask(taskId) {
-    try {
-      const res = await fetch("/api/study-tasks/toggle", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task_id: taskId })
-      });
-      const data = await res.json();
-      if (data.success) {
-        const itemEl = document.getElementById(`task-${taskId}`);
-        if (itemEl) {
-          if (data.is_completed) itemEl.classList.add("completed");
-          else itemEl.classList.remove("completed");
-        }
-      }
-    } catch (err) {
-      console.error("Error toggling task:", err);
-    }
   }
 
   // ==========================================
