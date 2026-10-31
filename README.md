@@ -54,6 +54,8 @@ The main tables are:
 | `textbooks` | Textbook catalogue information, PDF filename, class, subject, and availability. |
 | `bookmarks` | Per-user saved topics, textbooks, formulas, or other learning items. |
 | `doubt_conversations` | Per-user doubt-solver questions, answers, and conversation context. |
+| `classroom_resources` | Teacher-created notes and quizzes, scoped to a subject and class. |
+| `classroom_quiz_questions` | Parsed multiple-choice questions for teacher-uploaded CSV quizzes, with answers kept server-side. |
 
 Most curriculum data is shared reference data: subjects, topics, quizzes, and textbook catalogue records. User accounts and learning activity are stored separately and reference those records using IDs. Progress, quiz history, confidence, bookmarks, and doubt-solver conversations are associated with the signed-in user.
 
@@ -68,11 +70,11 @@ The index is derived from the PDF library and can be rebuilt or updated without 
 ## Authentication and request flow
 
 1. A visitor opens `/login` or `/register`.
-2. Registration creates a student account, validates the requested grade, hashes the password, and starts a signed Flask session.
+2. Registration lets visitors create a student account (Classes 8–10) or a teacher account, hashes the password, and starts a signed Flask session. Administrator accounts are not self-service.
 3. Login verifies the stored password hash. Legacy SHA-256 password records are upgraded to Werkzeug's password-hash format after a successful login.
 4. The `before_request` handler requires a session for application pages and APIs, except login, registration, and static assets. Unauthenticated page requests redirect to login; unauthenticated API requests receive HTTP 401.
 5. Student data endpoints use the session user ID. Teacher analytics require a teacher or administrator role; administrator APIs require the administrator role.
-6. `/logout` clears the session.
+6. `/logout` clears the session. Signed-in users can also use **Switch account** to sign in as a different demo or registered user.
 
 Set `LEARNSPHERE_SECRET_KEY` to a stable, private value when running the app persistently or with multiple workers. If it is not set, the app generates a random key at startup, which means sessions do not survive a restart and separate workers will not share sessions.
 
@@ -90,12 +92,14 @@ The main interface is served by `templates/index.html`. Its navigation switches 
 | Short Notes | Requests concise or structured study notes for a selected school topic. |
 | Progress & Gaps | Displays the signed-in student's quiz-based progress, topic recommendations, and doubt history. |
 | Bookmarks | Lists and toggles the signed-in student's saved items. |
-| Teacher View | Provides classroom-level student and quiz analytics for authorized roles. |
+| Teacher View | Lets teachers publish subject- and class-specific quizzes and notes, and review classroom analytics. |
 | Admin | Shows administrator statistics for authorized users. |
 
 `static/js/app.js` handles navigation, selected grade, dashboard/topic data, textbooks, notes, and bookmarks. `static/js/quiz.js` handles topic-specific quiz interactions. `static/js/progress.js` handles progress and saved doubt history. `static/js/doubt_solver.js` handles the doubt-solver interface and conversation history.
 
-The grade selector supports Classes 8, 9, and 10. Its selected class is passed to the relevant API requests so the subject, topic, textbook, and quiz screens can display grade-relevant content.
+Student accounts receive classroom resources for their registered class; their class is shown on the dashboard rather than being changed locally. Teachers use the Teacher View to choose a class and school subject before publishing material. Class-scoped resource APIs enforce those assignments on the server.
+
+Teachers can share typed notes or upload PDF, Word (`.doc`/`.docx`), and PowerPoint (`.ppt`/`.pptx`) notes. Quizzes can be uploaded as PDFs or as UTF-8 CSV files. An interactive quiz CSV has a header row with `question`, `answer`, and either an `options` column (choices separated by `|` or `;`, or a JSON array) or sequential `option_a`, `option_b`, and optional further option columns. The optional `qno` column supplies question numbers. Answers may be option letters, 1-based choice numbers, or exact choice text. CSV answers stay on the server; students see the choices and receive their score after submitting. Uploads are limited to 25 MB per file, with CSV quiz files limited to 5 MB.
 
 ## Run locally on Windows
 
@@ -149,7 +153,7 @@ On a database that is seeded with the demo accounts, the login credentials are:
 | Teacher | `pooja_teacher` | `teacher123` |
 | Administrator | `admin_svh` | `admin123` |
 
-These are development/demo credentials only. Change or remove them before making the application accessible to other users. New registrations create student accounts; teacher and administrator accounts should be provisioned by a trusted administrator.
+These are development/demo credentials only. Change or remove them before making the application accessible to other users. New users may register as students or teachers; administrator accounts are not available through public registration.
 
 ## Project files
 

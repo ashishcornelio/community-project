@@ -9,18 +9,26 @@ import hashlib
 import hmac
 import json
 import os
+import csv
+import io
+import re
 import secrets
+import uuid
 from flask import Flask, request, jsonify, render_template, send_from_directory, send_file, session, redirect, url_for
 from database import get_db, init_db
 from ai_engine import ai_engine
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SECRET_KEY"] = os.environ.get("LEARNSPHERE_SECRET_KEY") or secrets.token_hex(32)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
 
 TEXTBOOKS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "text books")
+CLASSROOM_UPLOADS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
+os.makedirs(CLASSROOM_UPLOADS_DIR, exist_ok=True)
 
 # Ensure DB is created on startup
 init_db()
@@ -112,9 +120,6 @@ def protect_all_routes():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     """Sign in an existing student, teacher or administrator."""
-    if session.get("user_id"):
-        return redirect(url_for("index"))
-
     next_url = request.args.get("next") or request.form.get("next") or "/"
     if not next_url.startswith("/") or next_url.startswith("//"):
         next_url = "/"
@@ -150,9 +155,20 @@ def login():
         return render_template(
             "login.html", mode="login", error="Invalid username or password.",
             username=identifier, next_url=next_url,
+            active_account=session.get("full_name") if session.get("user_id") else None,
         )
 
-    return render_template("login.html", mode="login", next_url=next_url)
+    return render_template(
+        "login.html", mode="login", next_url=next_url,
+        active_account=session.get("full_name") if session.get("user_id") else None,
+    )
+
+
+@app.errorhandler(413)
+def request_entity_too_large(_error):
+    if request.path.startswith("/api/"):
+        return jsonify({"success": False, "error": "Uploads must be smaller than 25 MB."}), 413
+    return "Upload is too large. Maximum file size is 25 MB.", 413
 
 
 @app.route("/register", methods=["GET", "POST"])
@@ -167,10 +183,15 @@ def register():
         full_name = request.form.get("full_name", "").strip()
         password = request.form.get("password", "")
         confirm = request.form.get("confirm_password", "")
+        role = request.form.get("role", "student").strip().lower()
         grade = request.form.get("grade", "Class 10")
 
-        if grade not in ("Class 8", "Class 9", "Class 10"):
+        if role not in ("student", "teacher"):
+            role = "student"
+        if role == "student" and grade not in ("Class 8", "Class 9", "Class 10"):
             grade = "Class 10"
+        elif role == "teacher":
+            grade = "Faculty"
 
         error = None
         if not username or not email or not full_name or not password:
@@ -194,10 +215,11 @@ def register():
                 INSERT INTO users (
                     username, email, password_hash, full_name, role, education_level,
                     grade, school, preferred_language, avatar, learning_points, streak_days
-                ) VALUES (?, ?, ?, ?, 'student', 'School', ?, ?, 'en', '👨‍🎓', 0, 0)
+                ) VALUES (?, ?, ?, ?, ?, 'School', ?, ?, 'en', ?, 0, 0)
                 """, (
-                    username, email, hash_password(password), full_name, grade,
+                    username, email, hash_password(password), full_name, role, grade,
                     "Shri Vishnumoorthi Hayavadanaswami High School, Innanje",
+                    "👩‍🏫" if role == "teacher" else "👨‍🎓",
                 ))
                 conn.commit()
                 cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
@@ -210,7 +232,7 @@ def register():
 
         return render_template(
             "login.html", mode="register", error=error,
-            username=username, email=email, full_name=full_name, grade=grade,
+            username=username, email=email, full_name=full_name, grade=grade, role=role,
         )
 
     return render_template("login.html", mode="register")
@@ -514,6 +536,342 @@ def generate_notes():
 
     result = ai_engine.generate_notes(dict(topic), format_type, language)
     return jsonify(result)
+
+
+def parse_quiz_csv(upload):
+    raw_content = upload.stream.read(5 * 1024 * 1024 + 1)
+    if len(raw_content) > 5 * 1024 * 1024:
+        return None, "Quiz CSV files must be smaller than 5 MB."
+    try:
+        csv_text = raw_content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return None, "Quiz CSV files must use UTF-8 encoding."
+
+    reader = csv.DictReader(io.StringIO(csv_text))
+    if not reader.fieldnames:
+        return None, "The CSV needs a header row with question, options, and answer columns."
+    headers = {
+        re.sub(r"[^a-z0-9]", "", name.lower()): name
+        for name in reader.fieldnames if name
+    }
+    if "question" not in headers or "answer" not in headers:
+        return None, "The CSV needs question and answer columns."
+    has_options_column = "options" in headers
+    has_choice_columns = any(f"option{letter}" in headers for letter in "abcdef")
+    if not has_options_column and not has_choice_columns:
+        return None, "Add an options column or option_a, option_b, and similar columns."
+
+    questions = []
+    for row_number, row in enumerate(reader, start=1):
+        question = str(row.get(headers["question"]) or "").strip()
+        answer = str(row.get(headers["answer"]) or "").strip()
+        question_number = str(row.get(headers.get("qno", "")) or row_number).strip()
+        if not question or not answer:
+            return None, f"CSV row {row_number + 1} needs both a question and an answer."
+
+        options = []
+        if has_options_column and row.get(headers["options"]):
+            raw_options = str(row[headers["options"]]).strip()
+            if raw_options.startswith("["):
+                try:
+                    parsed_options = json.loads(raw_options)
+                except json.JSONDecodeError:
+                    return None, f"CSV row {row_number + 1} has invalid JSON in its options column."
+                if not isinstance(parsed_options, list):
+                    return None, f"CSV row {row_number + 1} options must be a list."
+                options = [str(option).strip() for option in parsed_options]
+            else:
+                options = [option.strip() for option in re.split(r"\s*[|;]\s*", raw_options)]
+        else:
+            for letter in "abcdef":
+                header = f"option{letter}"
+                if header not in headers:
+                    break
+                option = str(row.get(headers[header]) or "").strip()
+                if not option:
+                    break
+                options.append(option)
+
+        if len(options) < 2 or len(options) > 6 or any(not option for option in options):
+            return None, f"CSV row {row_number + 1} needs between 2 and 6 non-empty options."
+        answer_match = re.fullmatch(r"(?:option\s*)?([a-f])[\s).:-]*", answer, re.IGNORECASE)
+        if answer_match:
+            answer_index = ord(answer_match.group(1).upper()) - ord("A")
+        elif answer.isdigit():
+            answer_index = int(answer) - 1
+        else:
+            normalized_answer = answer.casefold()
+            answer_index = next(
+                (index for index, option in enumerate(options) if option.casefold() == normalized_answer),
+                -1,
+            )
+        if answer_index < 0 or answer_index >= len(options):
+            return None, f"CSV row {row_number + 1} answer must be an option letter, 1-based number, or exact option text."
+        questions.append({
+            "question_number": question_number,
+            "question": question,
+            "options": options,
+            "answer_index": answer_index,
+        })
+        if len(questions) > 200:
+            return None, "A quiz can contain no more than 200 questions."
+
+    if not questions:
+        return None, "The CSV does not contain any quiz questions."
+    return questions, None
+
+
+@app.route("/api/classroom-resources", methods=["GET"])
+def list_classroom_resources():
+    """List resources visible to the signed-in class or teacher."""
+    conn = get_db()
+    cursor = conn.cursor()
+    if session.get("role") == "student":
+        cursor.execute("""
+        SELECT r.id, r.resource_type, r.title, r.grade, r.content, r.original_filename,
+               r.created_at, s.name AS subject_name, u.full_name AS teacher_name,
+               EXISTS (
+                   SELECT 1 FROM classroom_quiz_questions q WHERE q.resource_id = r.id
+               ) AS has_questions
+        FROM classroom_resources r
+        JOIN subjects s ON s.id = r.subject_id
+        JOIN users u ON u.id = r.teacher_id
+        WHERE r.grade = ?
+        ORDER BY r.created_at DESC, r.id DESC
+        """, (session.get("grade"),))
+    elif session.get("role") == "admin":
+        cursor.execute("""
+        SELECT r.id, r.resource_type, r.title, r.grade, r.content, r.original_filename,
+               r.created_at, s.name AS subject_name, u.full_name AS teacher_name,
+               EXISTS (
+                   SELECT 1 FROM classroom_quiz_questions q WHERE q.resource_id = r.id
+               ) AS has_questions
+        FROM classroom_resources r
+        JOIN subjects s ON s.id = r.subject_id
+        JOIN users u ON u.id = r.teacher_id
+        ORDER BY r.created_at DESC, r.id DESC
+        """)
+    else:
+        cursor.execute("""
+        SELECT r.id, r.resource_type, r.title, r.grade, r.content, r.original_filename,
+               r.created_at, s.name AS subject_name, u.full_name AS teacher_name,
+               EXISTS (
+                   SELECT 1 FROM classroom_quiz_questions q WHERE q.resource_id = r.id
+               ) AS has_questions
+        FROM classroom_resources r
+        JOIN subjects s ON s.id = r.subject_id
+        JOIN users u ON u.id = r.teacher_id
+        WHERE r.teacher_id = ?
+        ORDER BY r.created_at DESC, r.id DESC
+        """, (current_user_id(),))
+    resources = []
+    for row in cursor.fetchall():
+        resource = dict(row)
+        is_student = session.get("role") == "student"
+        is_csv_quiz = (
+            resource["resource_type"] == "quiz"
+            and (os.path.splitext(resource["original_filename"] or "")[1].lower() == ".csv")
+        )
+        resource["download_url"] = (
+            url_for("download_classroom_resource", resource_id=resource["id"])
+            if resource["original_filename"] and (not is_student or not is_csv_quiz)
+            else None
+        )
+        resources.append(resource)
+    conn.close()
+    return jsonify({"success": True, "resources": resources})
+
+
+@app.route("/api/classroom-resources", methods=["POST"])
+@roles_required("teacher", "admin")
+def create_classroom_resource():
+    """Publish a class-scoped teacher note or quiz file."""
+    data = request.form if not request.is_json else request.get_json()
+    resource_type = str(data.get("resource_type", "")).strip().lower()
+    title = str(data.get("title", "")).strip()
+    grade = str(data.get("grade", "")).strip()
+    subject_id = str(data.get("subject_id", "")).strip()
+    content = str(data.get("content", "")).strip()
+    upload = request.files.get("file")
+    if upload and not upload.filename:
+        upload = None
+    valid_grades = ("Class 8", "Class 9", "Class 10")
+
+    if resource_type not in ("quiz", "note"):
+        return jsonify({"success": False, "error": "Choose whether this is a quiz or a note."}), 400
+    if grade not in valid_grades:
+        return jsonify({"success": False, "error": "Choose a valid class."}), 400
+    if not subject_id.isdigit() or not title or len(title) > 150:
+        return jsonify({"success": False, "error": "A title and school subject are required."}), 400
+    if not upload and not (resource_type == "note" and content):
+        return jsonify({"success": False, "error": "Add note text or choose a supported file."}), 400
+    if resource_type == "quiz" and not upload:
+        return jsonify({"success": False, "error": "Choose a CSV or PDF quiz file."}), 400
+    if resource_type == "note" and content and len(content) > 200000:
+        return jsonify({"success": False, "error": "Typed notes must be 200,000 characters or fewer."}), 400
+
+    conn = get_db()
+    subject = conn.execute(
+        "SELECT id FROM subjects WHERE id = ? AND category = 'School'",
+        (int(subject_id),),
+    ).fetchone()
+    if not subject:
+        conn.close()
+        return jsonify({"success": False, "error": "Choose a valid school subject."}), 400
+
+    parsed_questions = []
+    original_filename = None
+    stored_filename = None
+    if upload and upload.filename:
+        safe_name = secure_filename(upload.filename)
+        extension = os.path.splitext(safe_name)[1].lower()
+        allowed_extensions = (
+            {".csv", ".pdf"} if resource_type == "quiz"
+            else {".pdf", ".doc", ".docx", ".ppt", ".pptx"}
+        )
+        if not safe_name or extension not in allowed_extensions:
+            conn.close()
+            allowed = ", ".join(sorted(allowed_extensions))
+            return jsonify({"success": False, "error": f"Supported file types: {allowed}."}), 400
+        original_filename = safe_name
+        stored_filename = f"{uuid.uuid4().hex}{extension}"
+        if resource_type == "quiz" and extension == ".csv":
+            parsed_questions, error = parse_quiz_csv(upload)
+            if error:
+                conn.close()
+                return jsonify({"success": False, "error": error}), 400
+            upload.stream.seek(0)
+        upload.save(os.path.join(CLASSROOM_UPLOADS_DIR, stored_filename))
+        if resource_type == "quiz":
+            content = None
+
+    cursor = conn.cursor()
+    cursor.execute("""
+    INSERT INTO classroom_resources
+        (resource_type, title, subject_id, grade, teacher_id, content, original_filename, stored_filename)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        resource_type, title, int(subject_id), grade, current_user_id(),
+        content or None, original_filename, stored_filename,
+    ))
+    resource_id = cursor.lastrowid
+    if parsed_questions:
+        cursor.executemany("""
+        INSERT INTO classroom_quiz_questions
+            (resource_id, question_number, question, options_json, answer_index)
+        VALUES (?, ?, ?, ?, ?)
+        """, [
+            (
+                resource_id, question["question_number"], question["question"],
+                json.dumps(question["options"]), question["answer_index"],
+            )
+            for question in parsed_questions
+        ])
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "resource_id": resource_id}), 201
+
+
+def get_classroom_resource(cursor, resource_id):
+    cursor.execute("""
+    SELECT id, resource_type, title, grade, teacher_id, stored_filename, original_filename
+    FROM classroom_resources WHERE id = ?
+    """, (resource_id,))
+    resource = cursor.fetchone()
+    if not resource:
+        return None, (jsonify({"success": False, "error": "Classroom resource not found."}), 404)
+    if session.get("role") == "student" and resource["grade"] != session.get("grade"):
+        return None, (jsonify({"success": False, "error": "This resource is not assigned to your class."}), 403)
+    if session.get("role") == "teacher" and resource["teacher_id"] != current_user_id():
+        return None, (jsonify({"success": False, "error": "You can only access your own classroom resources."}), 403)
+    return resource, None
+
+
+@app.route("/api/classroom-resources/<int:resource_id>/download", methods=["GET"])
+def download_classroom_resource(resource_id):
+    conn = get_db()
+    resource, error_response = get_classroom_resource(conn.cursor(), resource_id)
+    conn.close()
+    if error_response:
+        return error_response
+    if resource["resource_type"] == "quiz" and session.get("role") == "student":
+        if os.path.splitext(resource["original_filename"] or "")[1].lower() == ".csv":
+            return jsonify({"success": False, "error": "Use the interactive quiz to keep its answer key private."}), 403
+    if not resource["stored_filename"]:
+        return jsonify({"success": False, "error": "This resource has no attached file."}), 404
+    return send_from_directory(
+        CLASSROOM_UPLOADS_DIR, resource["stored_filename"], as_attachment=True,
+        download_name=resource["original_filename"],
+    )
+
+
+@app.route("/api/classroom-resources/<int:resource_id>/questions", methods=["GET"])
+def get_classroom_quiz_questions(resource_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    resource, error_response = get_classroom_resource(cursor, resource_id)
+    if error_response:
+        conn.close()
+        return error_response
+    if resource["resource_type"] != "quiz":
+        conn.close()
+        return jsonify({"success": False, "error": "This resource is not a quiz."}), 400
+    cursor.execute("""
+    SELECT question_number, question, options_json
+    FROM classroom_quiz_questions WHERE resource_id = ? ORDER BY id
+    """, (resource_id,))
+    questions = [
+        {
+            "question_number": row["question_number"],
+            "question": row["question"],
+            "options": json.loads(row["options_json"]),
+        }
+        for row in cursor.fetchall()
+    ]
+    conn.close()
+    if not questions:
+        return jsonify({"success": False, "error": "This uploaded quiz is available as a PDF download."}), 400
+    return jsonify({"success": True, "title": resource["title"], "questions": questions})
+
+
+@app.route("/api/classroom-resources/<int:resource_id>/submit", methods=["POST"])
+@roles_required("student")
+def submit_classroom_quiz(resource_id):
+    data = request.get_json() or {}
+    answers = data.get("answers")
+    if not isinstance(answers, list):
+        return jsonify({"success": False, "error": "Submit one selected option for each question."}), 400
+    conn = get_db()
+    cursor = conn.cursor()
+    resource, error_response = get_classroom_resource(cursor, resource_id)
+    if error_response:
+        conn.close()
+        return error_response
+    if resource["resource_type"] != "quiz":
+        conn.close()
+        return jsonify({"success": False, "error": "This resource is not a quiz."}), 400
+    cursor.execute("""
+    SELECT answer_index, options_json
+    FROM classroom_quiz_questions WHERE resource_id = ? ORDER BY id
+    """, (resource_id,))
+    questions = cursor.fetchall()
+    if not questions:
+        conn.close()
+        return jsonify({"success": False, "error": "This quiz does not contain interactive questions."}), 400
+    if len(answers) != len(questions):
+        conn.close()
+        return jsonify({"success": False, "error": "Answer every question before submitting."}), 400
+    score = 0
+    for answer, question in zip(answers, questions):
+        options = json.loads(question["options_json"])
+        if type(answer) is not int or answer < 0 or answer >= len(options):
+            conn.close()
+            return jsonify({"success": False, "error": "An answer choice is invalid."}), 400
+        if answer == question["answer_index"]:
+            score += 1
+    conn.close()
+    return jsonify({"success": True, "score": score, "total_questions": len(questions)})
+
 
 @app.route("/api/prerequisites/<int:topic_id>", methods=["GET"])
 def get_topic_prerequisites(topic_id):

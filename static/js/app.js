@@ -28,6 +28,10 @@ window.appState = new AppState();
 
 // Global Navigation Function
 window.navigateTo = function(viewName) {
+  const targetSec = document.getElementById(`view-${viewName}`);
+  const role = window.appState.currentUser.role;
+  if (!targetSec || (role === "teacher" && targetSec.classList.contains("student-only-view"))) return;
+
   // Update State
   window.appState.currentView = viewName;
 
@@ -45,7 +49,6 @@ window.navigateTo = function(viewName) {
     sec.classList.remove("active");
   });
 
-  const targetSec = document.getElementById(`view-${viewName}`);
   if (targetSec) {
     targetSec.classList.add("active");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -60,6 +63,12 @@ window.navigateTo = function(viewName) {
     window.loadTextbooks();
   } else if (viewName === "bookmarks" && window.loadBookmarks) {
     window.loadBookmarks();
+  } else if (viewName === "teacher" && window.loadClassroomResources) {
+    window.loadClassroomResources("teacher");
+  } else if (viewName === "quiz" && window.loadClassroomResources) {
+    window.loadClassroomResources("quiz");
+  } else if ((viewName === "notes" || viewName === "learn") && window.loadClassroomResources) {
+    window.loadClassroomResources("note");
   }
 };
 
@@ -88,11 +97,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupGradeSelector();
   setupSearchAutocomplete();
   setupNotesGenerator();
+  setupTeacherResourceForm();
 
   // Initialize Sub-Engines
   if (window.doubtSolver) await window.doubtSolver.init();
   if (window.quizEngine) await window.quizEngine.init();
   if (window.progressTracker) await window.progressTracker.init();
+  await loadClassroomSubjects();
+  await window.loadClassroomResources("all");
 
   // Load Initial Data
   await loadDashboardSubjects();
@@ -145,6 +157,7 @@ function setupGradeSelector() {
   if (nameEl) nameEl.textContent = window.appState.currentUser.full_name;
   if (badge) badge.textContent = `👤 ${window.appState.currentUser.full_name}`;
 
+  if (window.appState.currentUser.role !== "admin") return;
   if (!select) return;
   select.value = window.appState.currentGrade;
 
@@ -162,6 +175,176 @@ function setupGradeSelector() {
     window.navigateTo("learn");
   });
 }
+
+function escapeResourceHtml(value) {
+  return String(value || "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[char]);
+}
+
+function setupTeacherResourceForm() {
+  const form = document.getElementById("teacher-resource-form");
+  if (!form) return;
+  const typeSelect = document.getElementById("teacher-resource-type");
+  const fileInput = document.getElementById("teacher-resource-file");
+  const fileField = document.getElementById("teacher-resource-file-field");
+  const contentField = document.getElementById("teacher-resource-content-field");
+  const help = document.getElementById("teacher-upload-help");
+  const status = document.getElementById("teacher-upload-status");
+
+  const updateUploadFields = () => {
+    const isNote = typeSelect.value === "note";
+    contentField.hidden = !isNote;
+    fileInput.accept = isNote ? ".pdf,.doc,.docx,.ppt,.pptx" : ".csv,.pdf";
+    fileInput.required = !isNote;
+    help.textContent = isNote
+      ? "Optional: PDF, Word (.doc/.docx), or PowerPoint (.ppt/.pptx). Typed notes can be shared without a file."
+      : "CSV headers: qno, question, options, answer. Separate choices with |, use JSON for commas, or use option_a through option_f columns. Or upload a PDF.";
+  };
+  typeSelect.addEventListener("change", updateUploadFields);
+  updateUploadFields();
+
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    status.textContent = "Publishing resource…";
+    status.classList.remove("is-error", "is-success");
+    try {
+      const response = await fetch("/api/classroom-resources", {
+        method: "POST",
+        body: new FormData(form)
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || "Could not publish resource.");
+      status.textContent = "Published to the selected class.";
+      status.classList.add("is-success");
+      form.reset();
+      updateUploadFields();
+      await window.loadClassroomResources("all");
+    } catch (error) {
+      status.textContent = error.message || "Could not publish resource. Please try again.";
+      status.classList.add("is-error");
+    }
+  });
+}
+
+async function loadClassroomSubjects() {
+  const subjectSelect = document.getElementById("teacher-resource-subject");
+  if (!subjectSelect) return;
+  try {
+    const response = await fetch("/api/subjects");
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || "Could not load subjects.");
+    subjectSelect.innerHTML = `<option value="" selected disabled>Choose a subject</option>` + data.subjects.map(subject =>
+      `<option value="${Number(subject.id)}">${escapeResourceHtml(subject.name)}</option>`
+    ).join("");
+  } catch (error) {
+    subjectSelect.innerHTML = `<option value="">Subjects could not be loaded</option>`;
+    console.error("Classroom subjects load error:", error);
+  }
+}
+
+window.loadClassroomResources = async function(filter = "all") {
+  try {
+    const response = await fetch("/api/classroom-resources");
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || "Could not load classroom resources.");
+    const resources = data.resources;
+    const containers = [];
+    if (filter === "all" || filter === "teacher") containers.push(["teacher-resources", null]);
+    if (filter === "all" || filter === "quiz") containers.push(["assigned-quizzes", "quiz"]);
+    if (filter === "all" || filter === "note") {
+      containers.push(["classroom-notes", "note"], ["learn-classroom-notes", "note"]);
+    }
+    containers.forEach(([containerId, type]) => {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      const visibleResources = resources.filter(resource => !type || resource.resource_type === type);
+      if (!visibleResources.length) {
+        container.innerHTML = `<p class="resource-empty">${containerId === "teacher-resources" ? "You have not shared any resources yet." : "No class resources have been shared yet."}</p>`;
+        return;
+      }
+      container.innerHTML = visibleResources.map(resource => {
+        const isQuiz = resource.resource_type === "quiz";
+        const details = `${escapeResourceHtml(resource.subject_name)} · ${escapeResourceHtml(resource.grade)} · ${escapeResourceHtml(resource.teacher_name)}`;
+        let action = "";
+        if (window.appState.currentUser.role === "student" && isQuiz && resource.has_questions) {
+          action = `<button class="btn-primary" onclick="window.openClassroomQuiz(${Number(resource.id)})">Take quiz</button>`;
+        } else if (resource.download_url) {
+          action = `<a class="btn-secondary" href="${escapeResourceHtml(resource.download_url)}" target="_blank" rel="noopener">Download ${isQuiz ? "quiz" : "notes"}</a>`;
+        }
+        const typedNote = !isQuiz && resource.content
+          ? `<p class="resource-note-content">${escapeResourceHtml(resource.content)}</p>`
+          : "";
+        const filename = resource.original_filename
+          ? `<span class="resource-filename">${escapeResourceHtml(resource.original_filename)}</span>`
+          : "";
+        return `<article class="resource-card">
+          <div class="resource-card-main">
+            <span class="resource-kind">${isQuiz ? "🎯 Quiz" : "📝 Notes"}</span>
+            <h4>${escapeResourceHtml(resource.title)}</h4>
+            <p class="resource-subtitle">${details}</p>${filename}${typedNote}
+          </div>
+          <div class="resource-card-action">${action}</div>
+        </article>`;
+      }).join("");
+    });
+  } catch (error) {
+    document.querySelectorAll(".resource-list").forEach(container => {
+      container.innerHTML = `<p class="resource-status is-error">${escapeResourceHtml(error.message || "Could not load classroom resources.")}</p>`;
+    });
+    console.error("Classroom resources load error:", error);
+  }
+};
+
+window.openClassroomQuiz = async function(resourceId) {
+  const runner = document.getElementById("assigned-quiz-runner");
+  if (!runner) return;
+  runner.innerHTML = `<p class="resource-subtitle">Loading quiz…</p>`;
+  try {
+    const response = await fetch(`/api/classroom-resources/${resourceId}/questions`);
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || "Could not load this quiz.");
+    runner.innerHTML = `<form id="assigned-quiz-form" class="assigned-quiz-form">
+      <h3>${escapeResourceHtml(data.title)}</h3>
+      ${data.questions.map((question, index) => `<fieldset class="assigned-question">
+        <legend>${escapeResourceHtml(question.question_number)}. ${escapeResourceHtml(question.question)}</legend>
+        ${question.options.map((option, optionIndex) => `<label class="assigned-option">
+          <input type="radio" name="question-${index}" value="${optionIndex}" required>
+          <span>${escapeResourceHtml(option)}</span>
+        </label>`).join("")}
+      </fieldset>`).join("")}
+      <button class="btn-primary" type="submit">Submit quiz</button>
+      <p class="resource-status" id="assigned-quiz-result" role="status"></p>
+    </form>`;
+    document.getElementById("assigned-quiz-form").addEventListener("submit", async event => {
+      event.preventDefault();
+      const answers = data.questions.map((_question, index) =>
+        Number(new FormData(event.currentTarget).get(`question-${index}`))
+      );
+      const submit = event.currentTarget.querySelector('button[type="submit"]');
+      submit.disabled = true;
+      const result = document.getElementById("assigned-quiz-result");
+      try {
+        const submitResponse = await fetch(`/api/classroom-resources/${resourceId}/submit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ answers })
+        });
+        const scoreData = await submitResponse.json();
+        if (!submitResponse.ok || !scoreData.success) throw new Error(scoreData.error || "Could not submit quiz.");
+        result.textContent = `You scored ${scoreData.score} out of ${scoreData.total_questions}.`;
+        result.classList.add("is-success");
+      } catch (error) {
+        result.textContent = error.message || "Could not submit quiz.";
+        result.classList.add("is-error");
+        submit.disabled = false;
+      }
+    });
+    runner.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (error) {
+    runner.innerHTML = `<p class="resource-status is-error">${escapeResourceHtml(error.message || "Could not load this quiz.")}</p>`;
+  }
+};
 
 // ==========================================
 // GLOBAL SEARCH & AUTOCOMPLETE

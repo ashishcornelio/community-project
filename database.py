@@ -392,6 +392,41 @@ def init_db():
     );
     """)
     cursor.execute("""
+    CREATE TABLE IF NOT EXISTS classroom_resources (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        resource_type TEXT NOT NULL CHECK (resource_type IN ('quiz', 'note')),
+        title TEXT NOT NULL,
+        subject_id INTEGER NOT NULL,
+        grade TEXT NOT NULL,
+        teacher_id INTEGER NOT NULL,
+        content TEXT,
+        original_filename TEXT,
+        stored_filename TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (subject_id) REFERENCES subjects(id),
+        FOREIGN KEY (teacher_id) REFERENCES users(id)
+    );
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS classroom_quiz_questions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        resource_id INTEGER NOT NULL,
+        question_number TEXT NOT NULL,
+        question TEXT NOT NULL,
+        options_json TEXT NOT NULL,
+        answer_index INTEGER NOT NULL,
+        FOREIGN KEY (resource_id) REFERENCES classroom_resources(id) ON DELETE CASCADE
+    );
+    """)
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_classroom_resources_class
+    ON classroom_resources (resource_type, grade, subject_id)
+    """)
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_classroom_quiz_questions_resource
+    ON classroom_quiz_questions (resource_id, id)
+    """)
+    cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_doubt_conversations_user_id
     ON doubt_conversations (user_id, id)
     """)
